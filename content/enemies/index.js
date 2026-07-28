@@ -1,10 +1,18 @@
 /**
- * ENM-001..058. Appendix D.
+ * Enemy aggregator.
  *
- * Content kind: enemy. See src/schemas.js for the normative schema
- * and docs/AGENT_BRIEF.md for authoring rules.
+ * GDD refs: §14 (Enemy System), Appendix D.
  *
- * STATUS: scaffold - not yet authored.
+ * One file per department group, so several authors can work without collisions and
+ * this file stays the single place they are joined.
+ *
+ * Still to author: ENM-025..058 — Operations, Executive, the cross-department
+ * roamers, and the alternate/secret departments (Finance, Marketing, Legal,
+ * Facilities, R&D, Board, Conglomerate).
  */
 
-export default [];
+import openOfficeIt from './open-office-it.js';
+
+export default [
+  ...openOfficeIt,
+];
