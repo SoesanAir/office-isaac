@@ -1,0 +1,19 @@
+{
+  "name": "office-isaac",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Top-down action roguelike in a procedurally generated corporate tower. Internal codename only.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "serve": "node tools/serve.js",
+    "test": "node --test tests/",
+    "validate": "node tools/validate-content.js",
+    "stress:floors": "node tools/stress-floors.js",
+    "check": "npm run validate && npm test"
+  },
+  "keywords": [],
+  "license": "UNLICENSED"
+}

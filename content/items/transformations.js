@@ -1,0 +1,10 @@
+/**
+ * TRN-001..004. Appendix C.7.
+ *
+ * Content kind: transformation. See src/schemas.js for the normative schema
+ * and docs/AGENT_BRIEF.md for authoring rules.
+ *
+ * STATUS: scaffold - not yet authored.
+ */
+
+export default [];
