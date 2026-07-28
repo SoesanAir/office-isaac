@@ -237,8 +237,8 @@ export class Run {
     }
 
     const entry = room.entryPosition(fromSocketId);
-    this.player.px = entry.x;
-    this.player.py = entry.y;
+    this.player.x = entry.x;
+    this.player.y = entry.y;
     this.player.beginRoom();
 
     const hostile = this.canBeHostile(node);

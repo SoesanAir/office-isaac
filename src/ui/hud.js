@@ -124,16 +124,18 @@ export class Hud {
     const style = HEALTH_STYLE[icon.kind] || HEALTH_STYLE[HEALTH.COMPOSURE];
     const r = this.renderer;
     r.push(LAYER_ORDER.HUD, (c) => {
-      // Empty container outline is always drawn so max capacity stays visible.
+      // Empty container outline is always drawn so max capacity stays visible
+      // (GDD 5.2 "Empty container": capacity that currently lacks health).
       c.fillStyle = style.empty;
       drawGlyph(c, style.glyph, x, y, ICON);
-      if (icon.fill > 0) {
-        c.fillStyle = icon.fill >= 1 ? style.full : style.half;
-        // A half unit fills the left half only: a shape cue, not a colour cue,
-        // so it survives every colour-vision preset (R-UIX-005).
+      if (icon.state !== 'EMPTY') {
+        const full = icon.state === 'FULL';
+        c.fillStyle = full ? style.full : style.half;
+        // A half unit fills the left half only: a shape cue rather than a colour
+        // cue, so it survives every colour-vision preset (R-UIX-005).
         c.save();
         c.beginPath();
-        c.rect(x, y, icon.fill >= 1 ? ICON : ICON / 2, ICON);
+        c.rect(x, y, full ? ICON : ICON / 2, ICON);
         c.clip();
         drawGlyph(c, style.glyph, x, y, ICON);
         c.restore();

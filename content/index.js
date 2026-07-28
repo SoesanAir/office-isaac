@@ -20,7 +20,7 @@ import { installSchemas } from '../src/schemas.js';
 import sprites from './sprites/index.js';
 import sounds from './audio/sounds.js';
 import music from './audio/music.js';
-import localization from './loc/index.js';
+import localization from './loc/en.js';
 
 // -- world ------------------------------------------------------------------
 import envObjects from './world/objects.js';

@@ -1,5 +1,0 @@
-
-templates: 28  problems: 0
-coverage: {"tiny":0,"normal":26,"double":0,"large":0}
-  ROOM-001 0,0: 4
-  ROOM-002 0,0: 24

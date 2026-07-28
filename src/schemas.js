@@ -829,7 +829,13 @@ export const roomTemplateSchema = new Schema('roomTemplate', {
     ]),
   }), { required: true, minItems: 1 }),
   allowedEncounterTags: t.array(roomTag, { required: true }),
-  prohibitedEnemyTags: t.array(roomTag, { required: true }),
+  /**
+   * Enemy behaviour tags this architecture cannot support — a room with no clear
+   * lane cannot host a CHARGER, a room with no perimeter cannot host a
+   * WALL_HUGGER. Typed as enemy tags, not room tags: the field has to be able to
+   * name the thing it prohibits (R-ENM-001, R-FLR-007).
+   */
+  prohibitedEnemyTags: t.array(enemyTag, { required: true }),
   decorationSets: t.array(t.string({ required: true }), { required: true }),
   hazardAnchors: t.array(t.object({
     hazard: t.ref('hazard', { required: true }),
@@ -1144,7 +1150,13 @@ export const endingSchema = new Schema('ending', {
   beats: t.array(t.object({
     kind: t.enum(['TEXT', 'SCENE', 'CREDITS', 'CREDITS_INTERRUPT', 'ELEVATOR', 'FADE'], { required: true }),
     textLoc: t.string(),
-    seconds: t.number({ min: 0.2, max: 30 }),
+    /**
+     * Minimum is one frame at 60Hz, not a comfortable reading time. END-006
+     * Hostile Takeover requires the player to be the owner "for one frame before
+     * being acquired again" (GDD 16.7) — the brevity *is* the joke, so the schema
+     * must permit it.
+     */
+    seconds: t.number({ min: 1 / 60, max: 30 }),
     params: t.any(),
   }), { required: true, minItems: 1 }),
   terminal: t.bool({ required: true }),
