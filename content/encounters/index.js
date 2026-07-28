@@ -1,10 +1,15 @@
 /**
- * ENC-*. GDD 6.6, 14.5, G.4.
+ * Encounter aggregator.
  *
- * Content kind: encounter. See src/schemas.js for the normative schema
- * and docs/AGENT_BRIEF.md for authoring rules.
+ * GDD refs: 12.1 (the encounter layer is selected independently of architecture),
+ *           R-FLR-007 / D-006 (a room is a place, not an enemy list).
  *
- * STATUS: scaffold - not yet authored.
+ * One file per department group. Still to author: Operations, Executive, and the
+ * alternate and secret departments, once their enemies exist.
  */
 
-export default [];
+import openOfficeIt from './open-office-it.js';
+
+export default [
+  ...openOfficeIt,
+];

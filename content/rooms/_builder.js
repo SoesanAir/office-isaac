@@ -181,6 +181,16 @@ export function buildSpawnZones(cells, opts = {}) {
       rect: [inset + 1, inset + 1, Math.max(2, w - (inset + 1) * 2), Math.max(2, h - (inset + 1) * 2)],
     },
     { zone: SPAWN_ZONE.AIR, rect: [inset, inset, w - inset * 2, h - inset * 2] },
+    /**
+     * WALL_EDGE and OBJECT_ANCHOR are declared on every room because every room
+     * has walls and furniture positions. Wall-hugging enemies (ENM-013 Cable
+     * Snake) and anchored machines (ENM-018 Server Rack Turret) name these zones
+     * in their `spawnZones`, and the encounter selector refuses any encounter
+     * asking for a zone the template does not declare — so omitting them here
+     * would silently make a third of the IT roster unspawnable.
+     */
+    { zone: SPAWN_ZONE.WALL_EDGE, rect: [1, 1, w - 2, h - 2] },
+    { zone: SPAWN_ZONE.OBJECT_ANCHOR, rect: [inset, inset, w - inset * 2, h - inset * 2] },
     { zone: SPAWN_ZONE.REWARD, rect: [rx - 1, ry - 1, 3, 3] },
   ];
   if (opts.extra) zones.push(...opts.extra);
