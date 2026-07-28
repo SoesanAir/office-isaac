@@ -16,6 +16,7 @@
 import { loadContent } from '../content/index.js';
 import { findMissingHooks } from '../src/systems/effects.js';
 import { findMissingAdapters } from '../src/systems/adapters.js';
+import { findMissingBehaviours } from '../src/entities/enemy-controllers.js';
 import { allSpriteDefs, silhouetteSignature } from '../src/render/sprites.js';
 import '../src/register-all.js';
 
@@ -37,6 +38,13 @@ for (const miss of findMissingHooks(registry)) {
 }
 for (const miss of findMissingAdapters(registry)) {
   err(`passive/weapon:${miss.id}`, `adapter "${miss.adapter}" missing at ${miss.where}`);
+}
+// Enemy controllers, attack modules, and variant behaviour modules. GDD 20.3
+// forbids runtime AI generation, so every behaviour an enemy names must already
+// exist as a curated module — a missing one is a hard content error, not a
+// fallback-to-idle situation.
+for (const miss of findMissingBehaviours(registry)) {
+  err(`${miss.id}`, `${miss.kind} "${miss.name}" is not registered`);
 }
 
 // -- sprite references ------------------------------------------------------

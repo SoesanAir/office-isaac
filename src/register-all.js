@@ -30,6 +30,7 @@ import './systems/adapters/melee-adapters.js';
 import './systems/adapters/beam-adapters.js';
 import './systems/adapters/pattern-adapters.js';
 import './entities/enemy-controllers.js';
+import './entities/behavior-modules.js';
 import './entities/boss-patterns.js';
 
 let spritesRegistered = false;
