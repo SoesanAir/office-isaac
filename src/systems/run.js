@@ -296,7 +296,7 @@ export class Run {
     this.state = RUN_STATE.BOSS_RESOLUTION;
     this.events.emit(EVENTS.BOSS_DEFEATED, {
       bossId, floorId: this.floor.id, depth: this.floorDef.depth,
-      noDamageTaken: this.player.damageTakenThisRoom === 0,
+      noDamageTaken: (this.player.roomFlags.get("damageTaken") ?? 0) === 0,
     });
   }
 

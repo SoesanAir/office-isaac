@@ -1,0 +1,99 @@
+/*
+ * Page shell only. Everything inside the viewport is drawn on the canvas.
+ *
+ * GDD refs: 18.2 (nearest-neighbour integer scaling, no smoothing that blurs
+ *           silhouettes; 16:9 with safe-area support), 17.6 (readable text
+ *           option), 4.3 (the room is the frame).
+ *
+ * The canvas is sized in JS to an integer multiple of 960x540, so CSS here only
+ * centres it and keeps the browser from resampling. Any fractional scaling would
+ * soften the pixel art, which GDD 18.2 explicitly forbids.
+ */
+
+:root {
+  --void: #05050a;
+  --ink: #c8c8d6;
+  --dim: #6d6d84;
+  --accent: #7fb0ee;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--void);
+  color: var(--ink);
+  font-family: "Courier New", ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: hidden;
+}
+
+#stage {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+#game {
+  display: block;
+  background: var(--void);
+  /* Belt and braces: JS sets these too, but a slow module load must not show a
+     smoothed canvas even for one frame. */
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  /* A faint frame reads as a monitor bezel and makes letterboxing intentional. */
+  outline: 1px solid #1a1a26;
+  /* The canvas is the only interactive surface; stop iOS text selection on drag. */
+  touch-action: none;
+  user-select: none;
+}
+
+/* Keyboard focus must stay visible for accessibility even on a canvas app. */
+#game:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+#controls {
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  max-width: 240px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--dim);
+  pointer-events: none;
+  /* Present but quiet: GDD 17.1 says the game must not ask the player to manage a
+     dashboard. This is a dev-build reference card, not part of the HUD. */
+  opacity: 0.55;
+}
+
+#controls dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 10px;
+  margin: 0;
+}
+
+#controls dt { color: var(--ink); }
+#controls dd { margin: 0; }
+
+.notice {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  padding: 2rem;
+  font-size: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Honoured by the renderer's own reduced-effects settings; declared here so the
+     preference is discoverable from the page as well (GDD 17.6). */
+  #game { transition: none; }
+}

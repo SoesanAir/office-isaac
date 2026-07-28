@@ -1,0 +1,406 @@
+/**
+ * Browser entry point.
+ *
+ * GDD refs: 3.3 (run states), 4.1 (controls), 4.3 (camera), 4.4 (feedback
+ *           hierarchy), 12.3 (combat entry and doors), 17.2 (HUD), 20.2 (module
+ *           responsibilities), 20.5 (event ordering), 20.7 (performance targets).
+ *
+ * This wires the modules together and owns nothing itself. Every rule lives in the
+ * system that owns it: the Run owns transitions, the RoomController owns the combat
+ * lifecycle, the CombatResolver owns damage. Keeping this file thin is what makes
+ * the GDD 20.2 module table true rather than aspirational.
+ */
+
+import { EventBus, EVENTS, PhaseScheduler, PHASE, LISTENER_PRIORITY } from './core/events.js';
+import { GameLoop } from './core/loop.js';
+import { SIM_DT, LOGICAL_WIDTH, LOGICAL_HEIGHT, DOOR_CLASS, ROOM_ROLE } from './core/constants.js';
+import { Camera } from './render/camera.js';
+import { Renderer, LAYER_ORDER } from './render/renderer.js';
+import { InputSystem, ACTION } from './systems/input.js';
+import { Run, RUN_STATE, doorCost } from './systems/run.js';
+import { moveWithCollision, resolveOverlap, clampToRoom } from './systems/physics.js';
+import { Hud } from './ui/hud.js';
+import { loadContent } from '../content/index.js';
+import './register-all.js';
+
+/** Distance in world units at which touching a door triggers traversal. */
+const DOOR_TRIGGER_RADIUS = 0.9;
+
+class Game {
+  constructor(canvas) {
+    this.events = new EventBus();
+    this.scheduler = new PhaseScheduler();
+    this.camera = new Camera();
+    this.renderer = new Renderer(canvas, { camera: this.camera });
+    this.input = new InputSystem().attach(globalThis);
+    this.registry = loadContent({ strict: false });
+    this.loc = makeLocalizer(this.registry);
+    this.hud = new Hud({ renderer: this.renderer, registry: this.registry, loc: this.loc });
+    this.run = new Run({ registry: this.registry, events: this.events });
+
+    this.debug = { visible: true, lastGenMs: 0, genAttempts: 0 };
+    /** Cooldown so walking through a door does not immediately re-trigger it. */
+    this.doorCooldown = 0;
+    this.fatalError = null;
+    /**
+     * Presentation-only state. Deliberately not on the Player: walk cadence and
+     * hit flash are cosmetic, and R-TEC-007 means nothing here may influence the
+     * simulation or appear in a save.
+     */
+    this.fx = { walkPhase: 0, hitFlash: 0 };
+
+    this.#installSystems();
+    this.#installListeners();
+    this.loop = new GameLoop((dt) => this.update(dt), (alpha, frameDt) => this.render(alpha, frameDt));
+  }
+
+  /** Register per-phase work in GDD 20.5 order. */
+  #installSystems() {
+    this.scheduler
+      .register(PHASE.INPUT, 'sampleInput', () => {
+        this.frameInput = this.input.sample({
+          eightDirection: this.run.player?.hasPassive('ITM-012') ?? false,
+        });
+      })
+      .register(PHASE.MOVEMENT_INTENT, 'playerMovement', (dt) => this.#movePlayer(dt))
+      .register(PHASE.PHYSICS, 'doorTraversal', (dt) => this.#checkDoors(dt))
+      .register(PHASE.PRESENTATION, 'hudBanners', (dt) => {
+        this.hud.update(dt, this.run.state === RUN_STATE.ROOM_COMBAT);
+        this.hud.showMap = this.input.mapRequested();
+      });
+  }
+
+  #installListeners() {
+    // Presentation-priority listeners so they can never reorder a mechanic
+    // (R-TEC-007).
+    this.events.on(EVENTS.FLOOR_GENERATED, (e) => {
+      this.debug.lastGenMs = e.elapsedMs;
+      this.debug.genAttempts = e.attempts;
+    }, { priority: LISTENER_PRIORITY.PRESENTATION });
+
+    this.events.on(EVENTS.ROOM_ENTERED, () => {
+      const room = this.run.room;
+      if (!room) return;
+      this.camera.setRoom(room.rect, this.run.player);
+      resolveOverlap(this.run.player, room.collision);
+    }, { priority: LISTENER_PRIORITY.PRESENTATION });
+
+    this.events.on(EVENTS.PLAYER_DAMAGED, () => {
+      this.fx.hitFlash = 0.14;
+      this.camera.shake(0.22, 0.16);
+    }, { priority: LISTENER_PRIORITY.PRESENTATION });
+
+    this.events.on(EVENTS.SECRET_REVEALED, () => {
+      // R-AUD-004 wants a unique confirmation; the shake stands in until audio
+      // lands, and is deliberately stronger than an object break.
+      this.camera.shake(0.35, 0.3);
+      this.hud.queueBanner({ title: 'Maintenance access', priority: 50 });
+    }, { priority: LISTENER_PRIORITY.PRESENTATION });
+  }
+
+  start() {
+    try {
+      this.run.start();
+    } catch (err) {
+      this.fatalError = err;
+      // Surface content gaps loudly rather than showing a black screen
+      // (R-TEC-005: invalid content fails loudly in development).
+      console.error('Run failed to start:', err);
+    }
+    this.loop.start();
+  }
+
+  // -------------------------------------------------------------------------
+  // Simulation
+  // -------------------------------------------------------------------------
+
+  update(dt) {
+    if (this.fatalError) return;
+    this.run.tick(dt);
+    this.scheduler.tick(dt, this);
+    this.run.player.tick(dt);
+    this.camera.update(dt, this.run.player);
+    if (this.doorCooldown > 0) this.doorCooldown -= dt;
+    if (this.fx.hitFlash > 0) this.fx.hitFlash -= dt;
+    // Accumulate walk phase from distance travelled, not frame count, so the step
+    // cadence does not speed up with framerate (GDD 18.2 authored frame timing).
+    const p = this.run.player;
+    this.fx.walkPhase += Math.hypot(p.velocity.x, p.velocity.y) * dt;
+  }
+
+  #movePlayer(dt) {
+    const player = this.run.player;
+    const room = this.run.room;
+    const input = this.frameInput;
+    if (!player || !room || !input) return;
+    if (player.health.isDead) return;
+
+    // applyMovement resolves speed, statuses, and clamps; this file must not
+    // duplicate that math (R-PLY-003 lives in the player model).
+    player.applyMovement(input.moveX * input.moveMagnitude, input.moveY * input.moveMagnitude, dt);
+    const dx = player.velocity.x * dt;
+    const dy = player.velocity.y * dt;
+    moveWithCollision(player, dx, dy, room.collision);
+    clampToRoom(player, room.collision);
+    if (input.aimDirection) player.facing = input.aimDirection;
+    else if (dx !== 0 || dy !== 0) player.facing = facingFromVector(dx, dy);
+  }
+
+  /**
+   * Door traversal.
+   *
+   * GDD 12.3: doors seal during active combat, so traversal is refused while the
+   * room is hostile and uncleared. Cost is charged once, on the frame of the move.
+   */
+  #checkDoors(dt) {
+    if (this.doorCooldown > 0) return;
+    const room = this.run.room;
+    const player = this.run.player;
+    if (!room || !player) return;
+    if (this.run.state === RUN_STATE.ROOM_COMBAT && !this.run.roomNode.cleared) return;
+
+    for (const [socketId, pos] of room.doorWorldPositions) {
+      const door = pos.door;
+      if (!door.discovered) continue;
+      if (Math.hypot(player.x - pos.x, player.y - pos.y) > DOOR_TRIGGER_RADIUS) continue;
+
+      const cost = doorCost(door.doorClass);
+      if (cost.accessCards > 0) {
+        if (player.accessCards < cost.accessCards) {
+          this.hud.queueBanner({ title: 'Locked', subtitle: 'Needs a badge', seconds: 1.1 });
+          this.doorCooldown = 0.8;
+          return;
+        }
+        player.addAccessCards(-cost.accessCards);
+        this.events.emit(EVENTS.DOOR_UNLOCKED, { edgeId: door.edgeId, cost });
+      }
+      this.doorCooldown = 0.35;
+      this.run.useDoor(door);
+      return;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Presentation
+  // -------------------------------------------------------------------------
+
+  render() {
+    const r = this.renderer;
+    r.beginFrame();
+
+    if (this.fatalError) {
+      this.#renderFatal();
+      r.endFrame();
+      return;
+    }
+
+    const room = this.run.room;
+    const player = this.run.player;
+    if (room) {
+      r.drawRoom(this.run.roomNode, room.template, room.department, room.rect);
+      this.#renderDecorations(room);
+      this.#renderObjects(room);
+      this.#renderDoors(room);
+      r.drawDebugZones(room.template, room.rect);
+      this.#renderPlayer(player);
+      r.drawLighting(room.department);
+    }
+
+    this.hud.draw({ player, run: this.run });
+    if (this.debug.visible) this.#renderDebug();
+    r.endFrame();
+  }
+
+  #renderDecorations(room) {
+    for (const deco of room.decorations) {
+      // Floor decals only; GDD R-ROM-004 forbids decoration obscuring mechanics,
+      // so these are flat, dim, and never above the entity layer.
+      this.renderer.drawRect(deco.x, deco.y, 0.7, 0.5, '#2b2b36', {
+        layer: LAYER_ORDER.FLOOR_DECAL, alpha: 0.5,
+      });
+    }
+  }
+
+  #renderObjects(room) {
+    for (const obj of room.objects) {
+      if (obj.destroyed) continue;
+      const def = this.registry.get('envObject', obj.defId);
+      const spriteId = def?.spriteId;
+      // Tall objects draw above entities so cover reads as cover; short ones below.
+      const layer = obj.h >= 1.5 ? LAYER_ORDER.HIGH_OBJECT : LAYER_ORDER.LOW_OBJECT;
+      if (spriteId) {
+        this.renderer.drawSprite(spriteId, obj.x, obj.y + obj.h / 2, { layer });
+      } else {
+        this.renderer.drawRect(obj.x, obj.y, obj.w, obj.h, '#6d6d84', { layer });
+      }
+      if (obj.health < obj.maxHealth && obj.maxHealth > 0) {
+        // Damage state must be visible before destruction so breaking heavy cover
+        // is a readable decision, not a guess (GDD 13.2).
+        this.renderer.drawRect(obj.x, obj.y - obj.h / 2 - 0.3, obj.w * (obj.health / obj.maxHealth), 0.12,
+          '#e8c246', { layer: LAYER_ORDER.VFX });
+      }
+    }
+  }
+
+  #renderDoors(room) {
+    const sealed = this.run.state === RUN_STATE.ROOM_COMBAT && !this.run.roomNode.cleared;
+    for (const [, pos] of room.doorWorldPositions) {
+      const door = pos.door;
+      if (!door.discovered) continue;
+      let state = 'OPEN';
+      if (sealed) state = 'SEALED';
+      else if (door.doorClass === DOOR_CLASS.LOCKED_CARD) state = 'LOCKED_CARD';
+      else if (door.doorClass === DOOR_CLASS.LOCKED_DOUBLE) state = 'LOCKED_DOUBLE';
+      else if (door.doorClass === DOOR_CLASS.BOSS) state = 'BOSS';
+      this.renderer.drawDoor(door, pos.x, pos.y, state);
+
+      // World label for a cost, shown only near the relevant object (GDD 17.2).
+      const cost = doorCost(door.doorClass);
+      if (cost.accessCards > 0 && !sealed) {
+        const near = Math.hypot(this.run.player.x - pos.x, this.run.player.y - pos.y) < 3;
+        if (near) {
+          this.renderer.drawWorldLabel(`${cost.accessCards} badge`, pos.x, pos.y - 1.2, {
+            color: '#4a9ad0',
+          });
+        }
+      }
+    }
+  }
+
+  #renderPlayer(player) {
+    if (!player) return;
+    if (player.health.isDead) {
+      this.renderer.drawSprite('player_collapsed', player.x, player.y, {
+        outline: 'PLAYER', layer: LAYER_ORDER.ENTITY,
+      });
+      return;
+    }
+    const spriteId = PLAYER_SPRITE_BY_FACING[player.facing] || 'player_idle_south';
+    const moving = Math.abs(player.velocity.x) + Math.abs(player.velocity.y) > 0.3;
+    const frame = moving ? Math.floor(this.fx.walkPhase * 2.2) % 2 : 0;
+    const blinking = player.invulnerability.active
+      && Math.floor(player.invulnerability.remaining * 20) % 2 === 0;
+
+    this.renderer.drawSprite(spriteId, player.x, player.y, {
+      frame,
+      // R-PLY-005 / 18.3: the outline is persistent, not conditional.
+      outline: 'PLAYER',
+      layer: LAYER_ORDER.ENTITY,
+      // Invulnerability blinks rather than fading out, so the silhouette never
+      // disappears entirely while the player is repositioning.
+      alpha: blinking ? 0.45 : 1,
+      flash: this.fx.hitFlash > 0,
+    });
+  }
+
+  #renderDebug() {
+    const run = this.run;
+    const lines = [
+      `seed ${run.seed}  mode ${run.mode.id}`,
+      `floor ${run.floorDef?.id ?? '-'}  depth ${run.floorDef?.depth ?? '-'}`,
+      `room ${run.roomNode?.id ?? '-'} ${run.roomNode?.role ?? ''} ${run.roomNode?.templateId ?? ''}`,
+      `state ${run.state}  rooms ${run.roomsVisited}/${run.floor?.nodes.size ?? 0}`,
+      `gen ${this.debug.lastGenMs?.toFixed?.(1) ?? '-'}ms x${this.debug.genAttempts}`,
+      `frame ${this.loop.averageFrameMs().toFixed(1)}ms`,
+    ];
+    let y = LOGICAL_HEIGHT - 8 - lines.length * 10;
+    for (const line of lines) {
+      this.renderer.drawText(line, 8, y, { size: 9, color: '#9a9aae' });
+      y += 10;
+    }
+  }
+
+  #renderFatal() {
+    const msg = String(this.fatalError?.message || this.fatalError);
+    this.renderer.drawText('Content is not ready yet.', LOGICAL_WIDTH / 2, 160, {
+      size: 16, align: 'center', color: '#e04a54', weight: 'bold',
+    });
+    const wrapped = wrapText(msg, 72);
+    let y = 200;
+    for (const line of wrapped.slice(0, 14)) {
+      this.renderer.drawText(line, LOGICAL_WIDTH / 2, y, { size: 10, align: 'center', color: '#c8c8d6' });
+      y += 13;
+    }
+    this.renderer.drawText('Run `npm run validate` for the full report.', LOGICAL_WIDTH / 2, y + 10, {
+      size: 10, align: 'center', color: '#9a9aae',
+    });
+  }
+}
+
+const PLAYER_SPRITE_BY_FACING = Object.freeze({
+  NORTH: 'player_idle_north',
+  SOUTH: 'player_idle_south',
+  EAST: 'player_idle_east',
+  WEST: 'player_idle_west',
+  NORTHEAST: 'player_idle_east',
+  SOUTHEAST: 'player_idle_east',
+  NORTHWEST: 'player_idle_west',
+  SOUTHWEST: 'player_idle_west',
+});
+
+function facingFromVector(dx, dy) {
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'EAST' : 'WEST';
+  return dy >= 0 ? 'SOUTH' : 'NORTH';
+}
+
+/**
+ * Localizer. R-TEC-006: no system may branch on display text, so this is the only
+ * place a loc key becomes a string, and it is used for presentation only.
+ */
+function makeLocalizer(registry) {
+  const tables = registry.all('localization');
+  const table = tables.find((t) => t.language === 'en') || tables[0];
+  return (key) => {
+    if (!key) return '';
+    return table?.strings?.[key] ?? key;
+  };
+}
+
+function wrapText(text, width) {
+  const words = String(text).split(/\s+/);
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    if ((line + word).length > width) {
+      lines.push(line.trim());
+      line = '';
+    }
+    line += `${word} `;
+  }
+  if (line.trim()) lines.push(line.trim());
+  return lines;
+}
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+
+function boot() {
+  const canvas = document.getElementById('game');
+  const game = new Game(canvas);
+  globalThis.__officeIsaac = game; // debug handle, harmless in release
+  globalThis.addEventListener('resize', () => game.renderer.resize());
+  // F1 toggles the debug readout; the map is on Tab per GDD 4.1.
+  globalThis.addEventListener('keydown', (e) => {
+    if (e.code === 'F1') {
+      e.preventDefault();
+      game.debug.visible = !game.debug.visible;
+    }
+    if (e.code === 'F2') {
+      e.preventDefault();
+      game.renderer.setSetting('debugCollision', !game.renderer.settings.debugCollision);
+    }
+    if (e.code === 'F3') {
+      e.preventDefault();
+      game.renderer.setSetting('grayscale', !game.renderer.settings.grayscale);
+    }
+  });
+  game.start();
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+}
+
+export { Game, boot };

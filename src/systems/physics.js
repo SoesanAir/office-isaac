@@ -165,7 +165,7 @@ export class RoomCollision {
 /**
  * Move a circular entity with wall sliding.
  *
- * @param {{px:number, py:number, radius:number, flying?:boolean}} entity
+ * @param {{x:number, y:number, radius:number, flying?:boolean}} entity
  * @param {number} dx desired delta in world units
  * @param {number} dy desired delta in world units
  * @param {RoomCollision} collision
@@ -180,9 +180,9 @@ export function moveWithCollision(entity, dx, dy, collision) {
   let movedY = false;
 
   if (dx !== 0) {
-    const targetX = entity.px + dx;
-    if (!collision.isBlocked(targetX, entity.py, r, opts)) {
-      entity.px = targetX;
+    const targetX = entity.x + dx;
+    if (!collision.isBlocked(targetX, entity.y, r, opts)) {
+      entity.x = targetX;
       movedX = true;
     } else {
       // Sub-step so an entity ends up flush against the wall rather than a
@@ -190,30 +190,30 @@ export function moveWithCollision(entity, dx, dy, collision) {
       const step = Math.sign(dx) * 0.02;
       let moved = 0;
       while (Math.abs(moved) < Math.abs(dx)
-        && !collision.isBlocked(entity.px + step, entity.py, r, opts)) {
-        entity.px += step;
+        && !collision.isBlocked(entity.x + step, entity.y, r, opts)) {
+        entity.x += step;
         moved += step;
         movedX = true;
       }
-      hitObject = hitObject || collision.circleHitsObject(entity.px + Math.sign(dx) * r, entity.py, 0.05, opts);
+      hitObject = hitObject || collision.circleHitsObject(entity.x + Math.sign(dx) * r, entity.y, 0.05, opts);
     }
   }
 
   if (dy !== 0) {
-    const targetY = entity.py + dy;
-    if (!collision.isBlocked(entity.px, targetY, r, opts)) {
-      entity.py = targetY;
+    const targetY = entity.y + dy;
+    if (!collision.isBlocked(entity.x, targetY, r, opts)) {
+      entity.y = targetY;
       movedY = true;
     } else {
       const step = Math.sign(dy) * 0.02;
       let moved = 0;
       while (Math.abs(moved) < Math.abs(dy)
-        && !collision.isBlocked(entity.px, entity.py + step, r, opts)) {
-        entity.py += step;
+        && !collision.isBlocked(entity.x, entity.y + step, r, opts)) {
+        entity.y += step;
         moved += step;
         movedY = true;
       }
-      hitObject = hitObject || collision.circleHitsObject(entity.px, entity.py + Math.sign(dy) * r, 0.05, opts);
+      hitObject = hitObject || collision.circleHitsObject(entity.x, entity.y + Math.sign(dy) * r, 0.05, opts);
     }
   }
 
@@ -228,7 +228,7 @@ export function moveWithCollision(entity, dx, dy, collision) {
  * exactly that. Searches outward in a deterministic spiral.
  */
 export function resolveOverlap(entity, collision, maxRadius = 4) {
-  if (!collision.isBlocked(entity.px, entity.py, entity.radius, { flying: entity.flying })) {
+  if (!collision.isBlocked(entity.x, entity.y, entity.radius, { flying: entity.flying })) {
     return true;
   }
   for (let ring = 1; ring <= maxRadius * 4; ring += 1) {
@@ -238,11 +238,11 @@ export function resolveOverlap(entity, collision, maxRadius = 4) {
       [1, 0], [-1, 0], [0, 1], [0, -1],
       [0.707, 0.707], [-0.707, 0.707], [0.707, -0.707], [-0.707, -0.707],
     ]) {
-      const nx = entity.px + dx * dist;
-      const ny = entity.py + dy * dist;
+      const nx = entity.x + dx * dist;
+      const ny = entity.y + dy * dist;
       if (!collision.isBlocked(nx, ny, entity.radius, { flying: entity.flying })) {
-        entity.px = nx;
-        entity.py = ny;
+        entity.x = nx;
+        entity.y = ny;
         return true;
       }
     }
@@ -259,7 +259,7 @@ export function resolveOverlap(entity, collision, maxRadius = 4) {
  * let attacks leave the room or open secrets.
  */
 export function projectileHitsWorld(p, collision) {
-  const [lx, ly] = collision.toLocal(p.px, p.py);
+  const [lx, ly] = collision.toLocal(p.x, p.y);
   if (!collision.inBounds(lx, ly)) return { kind: 'WALL' };
 
   if (collision.isSolidTile(lx, ly)) return { kind: 'WALL' };
@@ -271,7 +271,7 @@ export function projectileHitsWorld(p, collision) {
 
   for (const obj of collision.objects) {
     if (obj.destroyed || !obj.blocksProjectiles) continue;
-    if (!circleBoxOverlap(p.px, p.py, p.radius, obj)) continue;
+    if (!circleBoxOverlap(p.x, p.y, p.radius, obj)) continue;
     if (p.ignoreFurnitureRemaining > 0) {
       // Consume one pass-through and keep flying (ITM-014's "first obstacle").
       p.ignoreFurnitureRemaining -= 1;
@@ -290,24 +290,24 @@ export function projectileHitsWorld(p, collision) {
  * instead of tunnelling through.
  */
 export function bounceProjectile(p, collision) {
-  const [lx, ly] = collision.toLocal(p.px, p.py);
-  const solidX = collision.isSolidTile(lx + Math.sign(p.vx || 1), ly);
-  const solidY = collision.isSolidTile(lx, ly + Math.sign(p.vy || 1));
+  const [lx, ly] = collision.toLocal(p.x, p.y);
+  const solidX = collision.isSolidTile(lx + Math.sign(p.velocity.x || 1), ly);
+  const solidY = collision.isSolidTile(lx, ly + Math.sign(p.velocity.y || 1));
   if (solidX && solidY) {
-    p.vx = -p.vx;
-    p.vy = -p.vy;
+    p.velocity.x = -p.velocity.x;
+    p.velocity.y = -p.velocity.y;
   } else if (solidX) {
-    p.vx = -p.vx;
+    p.velocity.x = -p.velocity.x;
   } else if (solidY) {
-    p.vy = -p.vy;
+    p.velocity.y = -p.velocity.y;
   } else {
     // Struck an object rather than the grid: reverse the dominant component.
-    if (Math.abs(p.vx) >= Math.abs(p.vy)) p.vx = -p.vx;
-    else p.vy = -p.vy;
+    if (Math.abs(p.velocity.x) >= Math.abs(p.velocity.y)) p.velocity.x = -p.velocity.x;
+    else p.velocity.y = -p.velocity.y;
   }
   // Nudge out of the surface so the next tick does not re-collide immediately.
-  p.px += Math.sign(p.vx) * 0.06;
-  p.py += Math.sign(p.vy) * 0.06;
+  p.x += Math.sign(p.velocity.x) * 0.06;
+  p.y += Math.sign(p.velocity.y) * 0.06;
 }
 
 /**
@@ -343,8 +343,8 @@ export function clampToRoom(entity, collision) {
   const minY = collision.origin.y + entity.radius;
   const maxX = collision.origin.x + collision.w - entity.radius;
   const maxY = collision.origin.y + collision.h - entity.radius;
-  entity.px = clamp(entity.px, minX, maxX);
-  entity.py = clamp(entity.py, minY, maxY);
+  entity.x = clamp(entity.x, minX, maxX);
+  entity.y = clamp(entity.y, minY, maxY);
 }
 
 export { SOLID_CHARS, PIT_CHARS, LOW_COVER_CHARS, TILE };

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Office Isaac — internal build</title>
+<meta name="description" content="A top-down action roguelike set in a procedurally generated corporate tower. Internal codename build.">
+<!--
+  GDD refs: 18.2 (pixel-perfect / nearest-neighbour integer scaling, no smoothing
+  that blurs silhouettes; 16:9 primary composition with safe-area support),
+  D-004/R-GOV-004 (no asset path assumes the codename is the product name).
+
+  Plain ES modules, no build step: GitHub Pages serves this file directly.
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="stage">
+    <canvas id="game" width="960" height="540" aria-label="Game viewport" role="img"></canvas>
+  </main>
+
+  <noscript>
+    <p class="notice">This build requires JavaScript and a browser with ES module support.</p>
+  </noscript>
+
+  <aside id="controls" aria-label="Controls">
+    <dl>
+      <dt>Move</dt><dd>W A S D</dd>
+      <dt>Attack</dt><dd>Arrow keys</dd>
+      <dt>Active item</dt><dd>Space</dd>
+      <dt>Pocket item</dt><dd>Q</dd>
+      <dt>Interact</dt><dd>E</dd>
+      <dt>Map</dt><dd>Tab</dd>
+      <dt>Pause</dt><dd>Esc</dd>
+      <dt>Debug / collision / grayscale</dt><dd>F1 / F2 / F3</dd>
+    </dl>
+  </aside>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
