@@ -118,6 +118,26 @@ export default [
 `src/schemas.js` and are **normative** — read the schema for your kind before
 authoring. `npm run validate` must pass with zero errors.
 
+### ID format — read this before inventing any id
+
+Ids are `PREFIX-BODY` with **exactly one hyphen**. The body uses `A-Z`, `0-9`, and
+**underscores** — never further hyphens. GDD §20.6 wants stable ASCII ids; the
+single-hyphen rule keeps `id.split('-')` unambiguous everywhere.
+
+```
+FLOOR-OPEN_OFFICE_1     correct
+FLOOR-OPEN-OFFICE-1     rejected by the schema
+MUS-PARENT_COMPANY      correct
+SFX-AMB_OPEN_OFFICE     correct
+UNLOCK-ALTERNATE_FINANCE correct
+```
+
+Numbered kinds keep the GDD's own zero-padded form: `WPN-001`, `ITM-060`,
+`ENM-058`, `BSS-029`, `ROOM-012`, `ENV-024`, `END-009`, `PRF-008`.
+
+The exact pattern per kind is `ID` in `src/schemas.js` — check it before authoring,
+not after.
+
 ### Hard content rules
 
 | Rule | Requirement |
