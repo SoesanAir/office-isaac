@@ -14,12 +14,22 @@
  * Palette characters come from PALETTE in src/render/sprites.js:
  *   n hair, s/S/d skin tones, b/B shirt blues, g trousers, k outline,
  *   w paper, y/Y lanyard badge, h grey cord.
+ *
+ * Scale: grids are authored at 16x18 and baked at `scale: 2`, giving 32x36px. GDD
+ * 18.2 sets a 32-pixel reference grid for ordinary characters, and one world unit
+ * is 32px, so a scale-1 bake would draw the player at half the size of every desk
+ * and filing cabinet in the room. Authoring at half resolution and doubling keeps
+ * the grids small enough to read as text while landing on the reference grid.
  */
+
+/** Every sprite in this file is authored at half the 32px reference grid. */
+const SCALE = 2;
 
 const player = [
   {
     id: 'player_idle_south',
     anchor: [0.5, 0.92],
+    scale: SCALE,
     silhouette: 'Broad shoulders, visible lanyard badge, head slightly forward.',
     frames: [[
       '................',
@@ -64,6 +74,7 @@ const player = [
   {
     id: 'player_idle_north',
     anchor: [0.5, 0.92],
+    scale: SCALE,
     silhouette: 'Back of head, no face; lanyard cord crosses the neck.',
     frames: [[
       '................',
@@ -108,6 +119,7 @@ const player = [
   {
     id: 'player_idle_east',
     anchor: [0.5, 0.92],
+    scale: SCALE,
     silhouette: 'Profile: one eye, nose bump, single trailing arm.',
     frames: [[
       '................',
@@ -152,6 +164,7 @@ const player = [
   {
     id: 'player_idle_west',
     anchor: [0.5, 0.92],
+    scale: SCALE,
     silhouette: 'Mirror of the east profile, kept as its own sprite for clarity.',
     frames: [[
       '................',
@@ -200,6 +213,7 @@ const player = [
      */
     id: 'player_collapsed',
     anchor: [0.5, 0.7],
+    scale: SCALE,
     silhouette: 'Horizontal with scattered paper; unmistakably not a walk frame.',
     frames: [[
       '................',

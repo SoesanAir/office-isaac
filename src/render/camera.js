@@ -59,9 +59,21 @@ export class Camera {
    * Bind the camera to a room.
    *
    * @param {{x:number,y:number,w:number,h:number}} rect room interior in world units
-   * @param {{px:number, py:number}} [player] used to seat a large-room camera immediately
+   * @param {{x:number, y:number}} [player] used to seat a large-room camera immediately
    */
   setRoom(rect, player) {
+    /**
+     * Guard against a non-finite player position.
+     *
+     * `beginFrame()` clears to near-black, so a NaN camera position renders an
+     * entirely black screen with no error anywhere the player can see it. A silent
+     * blank screen is a far worse failure than a visibly mis-framed room, so this
+     * falls back to centring and complains loudly in development.
+     */
+    if (player && (!Number.isFinite(player.x) || !Number.isFinite(player.y))) {
+      console.error('Camera.setRoom got a non-finite player position; centring instead.', player);
+      player = null;
+    }
     // Margin so walls, doors, and the door frame's outer edge stay on screen.
     const margin = 1.5;
     const contentW = rect.w + margin * 2;
@@ -103,8 +115,8 @@ export class Camera {
       this.bounds.maxY = centreY;
     }
 
-    const targetX = player ? clamp(player.px, this.bounds.minX, this.bounds.maxX) : centreX;
-    const targetY = player ? clamp(player.py, this.bounds.minY, this.bounds.maxY) : centreY;
+    const targetX = player ? clamp(player.x, this.bounds.minX, this.bounds.maxX) : centreX;
+    const targetY = player ? clamp(player.y, this.bounds.minY, this.bounds.maxY) : centreY;
     // Seat instantly on entry so a transition never shows a pan (R-CAM-004).
     this.x = targetX;
     this.y = targetY;
@@ -113,8 +125,8 @@ export class Camera {
   /** Advance follow and shake. `dt` is the fixed simulation step. */
   update(dt, player) {
     if (!this.locked && player) {
-      const targetX = clamp(player.px, this.bounds.minX, this.bounds.maxX);
-      const targetY = clamp(player.py, this.bounds.minY, this.bounds.maxY);
+      const targetX = clamp(player.x, this.bounds.minX, this.bounds.maxX);
+      const targetY = clamp(player.y, this.bounds.minY, this.bounds.maxY);
       this.x = damp(this.x, targetX, FOLLOW_RATE, dt);
       this.y = damp(this.y, targetY, FOLLOW_RATE, dt);
     } else if (this.locked) {
