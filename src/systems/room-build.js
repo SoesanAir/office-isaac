@@ -119,14 +119,30 @@ export class RoomInstance {
    * Entry position for a player arriving through a door, placed just inside it.
    * Passing `null` (a fresh floor) uses the room centre.
    */
-  entryPosition(fromSocketId) {
+  entryPosition(fromSocketId, radius = 0.42) {
     if (fromSocketId && this.doorWorldPositions.has(fromSocketId)) {
       const door = this.doorWorldPositions.get(fromSocketId);
-      // Step in by 1.5 units so the player is never standing in the doorway,
-      // which would leave them clipped when the door seals (GDD 12.3).
-      const inward = { NORTH: [0, 1.5], SOUTH: [0, -1.5], EAST: [-1.5, 0], WEST: [1.5, 0] };
-      const [dx, dy] = inward[door.side] || [0, 0];
-      return { x: door.x + dx, y: door.y + dy };
+      // Step in by 1.5 units so the player is never standing in the doorway, which would
+      // leave them clipped when the door seals (GDD 12.3).
+      const inward = { NORTH: [0, 1], SOUTH: [0, -1], EAST: [-1, 0], WEST: [1, 0] };
+      const [ix, iy] = inward[door.side] || [0, 0];
+
+      // A template may legitimately place cover a couple of tiles inside a door, so the
+      // nominal step is not guaranteed clear. R-CMB-006 forbids arriving inside geometry,
+      // so try progressively shorter and then laterally offset positions rather than
+      // trusting the arithmetic. The lateral fallbacks matter because the doorway itself
+      // is three tiles wide: if the middle is blocked, the sides usually are not.
+      const along = iy === 0 ? [0, 1] : [1, 0];
+      for (const depth of [1.5, 1.1, 0.8, 2.2]) {
+        for (const side of [0, -1, 1]) {
+          const x = door.x + ix * depth + along[0] * side;
+          const y = door.y + iy * depth + along[1] * side;
+          if (!this.collision.circleHitsGeometry(x, y, radius)) return { x, y };
+        }
+      }
+      // Everything inside the doorway is blocked, which is a content defect the room
+      // validator should have caught. The centre keeps the run playable meanwhile.
+      console.error(`Room ${this.nodeId}: no clear entry inside door ${fromSocketId}.`);
     }
     const c = this.centre;
     return { x: c.x, y: c.y };

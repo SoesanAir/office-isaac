@@ -114,6 +114,18 @@ export class EncounterRuntime {
     return spawned;
   }
 
+  /**
+   * Note which room the player is in.
+   *
+   * Called by the RoomController on every entry, before it decides whether the room is
+   * hostile. Everything that needs "the room the player is standing in" — projectile
+   * collision, player attacks, hazard placement — reads `currentRoom`, and it must be
+   * correct in a shop and a cleared corridor, not only in a fight.
+   */
+  setRoom(roomInstance) {
+    this.currentRoom = roomInstance;
+  }
+
   /** Release the grace window: enemies may now act (GDD 6.1 step 5). */
   activate() {
     this.activated = true;

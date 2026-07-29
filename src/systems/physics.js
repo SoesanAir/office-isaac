@@ -68,16 +68,26 @@ export class RoomCollision {
     return lx >= 0 && ly >= 0 && lx < this.w && ly < this.h;
   }
 
-  isSolidTile(lx, ly) {
-    if (!this.inBounds(lx, ly)) return true; // outside the room is solid
-    if (this.solid[ly * this.w + lx]) {
-      // A door opening carves a hole in the wall ring.
-      for (const o of this.openings) {
-        if (lx >= o.x0 && lx <= o.x1 && ly >= o.y0 && ly <= o.y1) return false;
-      }
-      return true;
+  /** Is `(lx, ly)` inside any carved door opening? */
+  #isOpening(lx, ly) {
+    for (const o of this.openings) {
+      if (lx >= o.x0 && lx <= o.x1 && ly >= o.y0 && ly <= o.y1) return true;
     }
     return false;
+  }
+
+  isSolidTile(lx, ly) {
+    // Openings are checked FIRST, before the bounds test.
+    //
+    // This grid covers the room INTERIOR only — the wall ring lives at local -1 and at
+    // w/h, both out of bounds. Door openings are carved exactly there, so testing bounds
+    // first meant every opening was unreachable and the player bounced off walls where a
+    // door plainly was. It read as "sometimes" rather than "always" because only NORTH
+    // and WEST doors put their trigger point outside the grid; EAST and SOUTH doors sit
+    // on the last interior tile and happened to work.
+    if (this.#isOpening(lx, ly)) return false;
+    if (!this.inBounds(lx, ly)) return true; // outside the room is solid
+    return Boolean(this.solid[ly * this.w + lx]);
   }
 
   isPitTile(lx, ly) {

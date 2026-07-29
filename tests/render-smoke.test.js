@@ -11,8 +11,9 @@
  * from a camera bug by eye, so it needs a test that actually runs the render path
  * for every room of a real generated floor and fails loudly on a throw.
  *
- * The canvas is a recording stub rather than a real one: this asserts that the
- * render path completes and draws where it claims to, not that pixels look right.
+ * The canvas is a recording stub rather than a real one (tests/helpers/canvas.js): this
+ * asserts that the render path completes and draws where it claims to, not that pixels
+ * look right.
  */
 
 import test from 'node:test';
@@ -24,63 +25,7 @@ import { EventBus } from '../src/core/events.js';
 import { Run } from '../src/systems/run.js';
 import { Camera } from '../src/render/camera.js';
 import { LOGICAL_WIDTH, LOGICAL_HEIGHT, TILE } from '../src/core/constants.js';
-
-/** Minimal 2D context recorder. Records draw calls; ignores appearance. */
-function makeContext() {
-  const calls = { drawImage: 0, fillRect: 0, fillText: 0, strokeRect: 0, arc: 0 };
-  const ctx = {
-    canvas: { width: LOGICAL_WIDTH, height: LOGICAL_HEIGHT },
-    globalAlpha: 1,
-    globalCompositeOperation: 'source-over',
-    fillStyle: '#000',
-    strokeStyle: '#000',
-    lineWidth: 1,
-    font: '',
-    textAlign: 'left',
-    textBaseline: 'top',
-    imageSmoothingEnabled: false,
-    calls,
-    drawImage(...args) { calls.drawImage += 1; calls.lastDrawImage = args.slice(1); },
-    fillRect() { calls.fillRect += 1; },
-    strokeRect() { calls.strokeRect += 1; },
-    fillText() { calls.fillText += 1; },
-    beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, stroke() {}, fill() {},
-    arc() { calls.arc += 1; },
-    rect() {}, clip() {}, save() {}, restore() {}, translate() {}, scale() {},
-    setLineDash() {},
-    createRadialGradient() { return { addColorStop() {} }; },
-    bezierCurveTo() {},
-  };
-  return ctx;
-}
-
-/** Stub canvas element good enough for both the renderer and sprite baking. */
-function makeCanvas(width = LOGICAL_WIDTH, height = LOGICAL_HEIGHT) {
-  const ctx = makeContext();
-  return {
-    width,
-    height,
-    style: {},
-    getContext: () => ctx,
-    _ctx: ctx,
-  };
-}
-
-/**
- * Install a `document.createElement('canvas')` shim so sprite baking and the
- * renderer's offscreen room bake work without a browser.
- */
-function installDomShim() {
-  if (globalThis.document) return;
-  globalThis.document = {
-    createElement(tag) {
-      if (tag !== 'canvas') throw new Error(`unexpected createElement(${tag})`);
-      return makeCanvas(1, 1);
-    },
-  };
-  globalThis.innerWidth = 1920;
-  globalThis.innerHeight = 1080;
-}
+import { makeCanvas, installDomShim } from './helpers/canvas.js';
 
 async function makeGame(seed) {
   installDomShim();

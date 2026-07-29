@@ -123,7 +123,9 @@ class Game {
       })
       .register(PHASE.PRESENTATION, 'hudBanners', (dt) => {
         this.hud.update(dt, this.roomController.isSealed);
-        this.hud.showMap = this.input.mapRequested();
+        // The compact map is always drawn (hud.showMap defaults true), so the MAP
+        // action expands it to the full-screen overlay instead of toggling visibility.
+        this.hud.mapExpanded = this.input.mapRequested();
       });
   }
 
@@ -179,8 +181,10 @@ class Game {
     }, { priority: LISTENER_PRIORITY.MECHANIC });
 
     this.events.on(EVENTS.ROOM_CLEARED, () => {
+      // The shake is the whole notification. The doors opening already says the room is
+      // finished, and a banner on top of that is telling the player something they can
+      // see — GDD 17.2 reserves the centre banner for information the world cannot show.
       this.camera.shake(0.12, 0.14);
-      this.hud.queueBanner({ title: 'Room clear', seconds: 1.1, priority: 20 });
     }, { priority: LISTENER_PRIORITY.PRESENTATION });
 
     // Pedestal rooms place their item on first entry (GDD 12.5's reward table).

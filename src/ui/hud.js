@@ -45,7 +45,10 @@ export class Hud {
     this.bannerTimer = 0;
     /** Scale for HUD and text (GDD 17.6 scalable HUD). */
     this.uiScale = 1;
-    this.showMap = false;
+    // On by default. GDD 17.4 wants the map available; there is no reason to make the
+    // player hold a key to answer "where have I been", and the compact panel is small
+    // enough not to compete with combat.
+    this.showMap = true;
     this.mapExpanded = false;
   }
 
@@ -304,8 +307,10 @@ export class Hud {
   #drawMap(run) {
     const floor = run.floor;
     const compact = !this.mapExpanded;
-    const cell = compact ? 7 : 15;
-    const gap = compact ? 2 : 3;
+    // Larger than it was. The map is on by default now, so it has to be readable at a
+    // glance rather than only when deliberately opened.
+    const cell = compact ? 13 : 26;
+    const gap = compact ? 3 : 5;
 
     // Only discovered rooms appear. R-FLR-010 / 17.4: undiscovered secret rooms
     // do not reserve visible spaces or show blank icons, so they are simply absent.
@@ -326,38 +331,139 @@ export class Hud {
     const spanX = (maxX - minX + 1) * (cell + gap);
     const spanY = (maxY - minY + 1) * (cell + gap);
     const originX = compact ? LOGICAL_WIDTH - PAD - spanX : (LOGICAL_WIDTH - spanX) / 2;
-    const originY = compact ? LOGICAL_HEIGHT - PAD - spanY - 40 : (LOGICAL_HEIGHT - spanY) / 2;
+    const originY = compact ? PAD + 28 : (LOGICAL_HEIGHT - spanY) / 2;
 
     const currentId = run.roomNode?.id;
+    const at = (cx, cy) => ({
+      x: originX + (cx - minX) * (cell + gap),
+      y: originY + (cy - minY) * (cell + gap),
+    });
+
     this.renderer.push(LAYER_ORDER.HUD, (c) => {
       if (!compact) {
         c.fillStyle = 'rgba(5,5,10,0.86)';
         c.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+      } else {
+        // A panel behind the compact map. Without it, dark room fills vanish against a
+        // dark floor and the map is only legible in bright rooms.
+        c.fillStyle = 'rgba(8,8,14,0.72)';
+        c.fillRect(originX - 6, originY - 6, spanX + 12 - gap, spanY + 12 - gap);
+        c.strokeStyle = 'rgba(120,120,148,0.5)';
+        c.lineWidth = 1;
+        c.strokeRect(originX - 5.5, originY - 5.5, spanX + 11 - gap, spanY + 11 - gap);
       }
+
+      // ---- door connectors ------------------------------------------------
+      // The cells are drawn with a gap between them, so without these the map reads as
+      // a scatter of disconnected squares and gives no route information at all.
+      c.strokeStyle = 'rgba(160,160,190,0.75)';
+      c.lineWidth = compact ? 2 : 3;
+      const seen = new Set();
+      for (const node of visible) {
+        for (const door of node.doors || []) {
+          if (!door.discovered) continue;
+          const other = floor.nodes.get(door.toNodeId);
+          if (!other || !visible.includes(other)) continue;
+          const key = [node.id, other.id].sort().join('>');
+          if (seen.has(key)) continue;
+          seen.add(key);
+          // Join the closest pair of cells, which for orthogonally adjacent rooms is the
+          // pair either side of the wall they share.
+          let best = null;
+          let bestD = Infinity;
+          for (const [ax, ay] of node.cells) {
+            for (const [bx, by] of other.cells) {
+              const d = Math.abs(ax - bx) + Math.abs(ay - by);
+              if (d < bestD) { bestD = d; best = [ax, ay, bx, by]; }
+            }
+          }
+          if (!best) continue;
+          const a = at(best[0], best[1]);
+          const b = at(best[2], best[3]);
+          c.beginPath();
+          c.moveTo(a.x + cell / 2, a.y + cell / 2);
+          c.lineTo(b.x + cell / 2, b.y + cell / 2);
+          c.stroke();
+        }
+      }
+
+      // ---- rooms ----------------------------------------------------------
       for (const node of visible) {
         const style = MAP_STYLE[node.role] || MAP_STYLE.DEFAULT;
+        const isCurrent = node.id === currentId;
         for (const [cx, cy] of node.cells) {
-          const x = originX + (cx - minX) * (cell + gap);
-          const y = originY + (cy - minY) * (cell + gap);
-          const isCurrent = node.id === currentId;
+          const { x, y } = at(cx, cy);
           c.fillStyle = node.visited ? style.fill : '#1a1a26';
           c.fillRect(x, y, cell, cell);
+          // An unvisited-but-adjacent room is drawn hollow, so "somewhere to go" and
+          // "somewhere I have been" never look alike.
           c.strokeStyle = isCurrent ? '#ffffff' : style.stroke;
-          c.lineWidth = isCurrent ? 2 : 1;
+          c.lineWidth = isCurrent ? 2.5 : 1;
           c.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
         }
+
+        const head = at(node.cells[0][0], node.cells[0][1]);
+
         // Role marker: a glyph, so the map does not rely on colour (R-UIX-005).
         if (style.mark && node.visited) {
-          const x = originX + (node.cells[0][0] - minX) * (cell + gap);
-          const y = originY + (node.cells[0][1] - minY) * (cell + gap);
           c.fillStyle = '#ffffff';
-          c.font = `${compact ? 6 : 11}px "Courier New", monospace`;
+          c.font = `${compact ? 10 : 18}px "Courier New", monospace`;
           c.textAlign = 'center';
           c.textBaseline = 'middle';
-          c.fillText(style.mark, x + cell / 2, y + cell / 2 + 0.5);
+          c.fillText(style.mark, head.x + cell / 2, head.y + cell / 2 + 0.5);
+        }
+
+        // The player's own room gets a filled pip, so it is findable without hunting for
+        // the white outline on a busy map.
+        if (isCurrent) {
+          c.fillStyle = '#ffffff';
+          c.beginPath();
+          c.arc(head.x + cell / 2, head.y + cell / 2, compact ? 2.5 : 4.5, 0, Math.PI * 2);
+          c.fill();
+        }
+
+        // ---- uncollected loot ---------------------------------------------
+        // One marker per room however much is lying there: the useful information is
+        // "something is still in that room", and a count would just be noise on a
+        // 13-pixel square.
+        if (this.#hasUncollectedLoot(node)) {
+          const size = compact ? 3.4 : 6;
+          const mx = head.x + cell - size - 1.5;
+          const my = head.y + size + 1.5;
+          // A diamond rather than a letter: it has to stay distinct from the role glyphs,
+          // which are all ASCII characters drawn in the centre.
+          c.fillStyle = '#f7e07a';
+          c.strokeStyle = '#14141c';
+          c.lineWidth = 1;
+          c.beginPath();
+          c.moveTo(mx, my - size);
+          c.lineTo(mx + size, my);
+          c.lineTo(mx, my + size);
+          c.lineTo(mx - size, my);
+          c.closePath();
+          c.fill();
+          c.stroke();
         }
       }
     });
+  }
+
+  /**
+   * Does this room still hold something worth walking back for?
+   *
+   * Reads the built room instance rather than the graph node, because loot lives in the
+   * instance layer (GDD 12.1). An unbuilt room has nothing placed yet, and an unvisited
+   * one must not leak its contents (17.4), so both correctly answer no.
+   */
+  #hasUncollectedLoot(node) {
+    if (!node.visited) return false;
+    const room = node._instance;
+    if (!room) return false;
+    if (room.pedestal && !room.pedestal.taken) return true;
+    for (const pickup of room.pickups || []) {
+      if (!pickup.collected) return true;
+    }
+    return false;
   }
 
   /** A room becomes map-visible once a neighbour has been entered. */

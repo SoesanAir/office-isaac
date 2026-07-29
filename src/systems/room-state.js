@@ -95,6 +95,16 @@ export class RoomController {
     this.currentWave = 0;
     this.stallTimer = 0;
 
+    // Tell the spawner which room the player is in FIRST, unconditionally.
+    //
+    // This used to happen only as a side effect of spawn()/spawnBoss(), both of which the
+    // early returns below skip for non-hostile and already-cleared rooms. Two consequences,
+    // and the second is worse than the first: the player could not attack at all in a start
+    // room, a shop, or any room they had already finished (player-attack refuses to fire
+    // without a current room), and a stale value meant projectiles were tested against the
+    // PREVIOUS room's geometry.
+    this.spawner.setRoom?.(roomInstance);
+
     const state = roomInstance.state;
     state.visited = true;
 
