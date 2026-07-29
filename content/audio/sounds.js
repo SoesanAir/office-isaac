@@ -82,6 +82,29 @@ const sounds = [
     voice: 'SQUARE', freq: 200, freqEnd: 120, duration: 0.42, attack: 0.03, decay: 0.3,
     gain: 0.58, priority: 2, max: 4, caption: 'caption.slam_windup',
   }),
+  // Three weight classes for the ENM-025..058 rosters. GDD 14.3 says audio supplements
+  // the visual telegraph, so these do not need to be individually memorable — but a
+  // Forklift Clerk and a Conveyor Gremlin sounding identical would waste information the
+  // player could otherwise act on, which is why they are not all TELEGRAPH_GENERIC.
+  //
+  // The three are separated by register rather than by timbre: low and slow reads as
+  // heavy, high and short reads as light, and a soft two-tone reads as support. That
+  // survives being heard once, in a noisy room, at low volume.
+  sfx('SFX-TELEGRAPH_HEAVY', {
+    voice: 'SQUARE', freq: 130, freqEnd: 84, duration: 0.5, attack: 0.04, decay: 0.36,
+    gain: 0.6, priority: 2, max: 3, filter: { type: 'lowpass', frequency: 900, q: 1.2 },
+    caption: 'caption.telegraph_heavy',
+  }),
+  sfx('SFX-TELEGRAPH_LIGHT', {
+    voice: 'TRIANGLE', freq: 900, freqEnd: 1240, duration: 0.2, attack: 0.01, decay: 0.14,
+    gain: 0.38, priority: 2, max: 8, detune: 40, caption: 'caption.telegraph_light',
+  }),
+  sfx('SFX-TELEGRAPH_SUPPORT', {
+    // Rising two-tone, quieter than an attack cue: a support wind-up is information
+    // rather than a threat, and it should not compete with the thing about to hit you.
+    voice: 'SINE', freq: 520, freqEnd: 700, duration: 0.36, attack: 0.05, decay: 0.26,
+    gain: 0.34, priority: 2, max: 5, caption: 'caption.telegraph_support',
+  }),
   sfx('SFX-COFFEE_SPRINTER_SHAKE', {
     // ENM-004's tell: a rattling cup. Deliberately distinct from every other
     // wind-up, because GDD 14.3 says audio supplements but never replaces the
