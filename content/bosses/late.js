@@ -73,7 +73,7 @@ const bosses = [
   boss('BSS-021', 'general_counsel', {
     departments: ['LEGAL'],
     floorPools: ['BOSSPOOL-LEGAL_1', 'BOSSPOOL-LEGAL_2'],
-    arenaTags: ['BOSS_ARENA', 'OPEN_CENTRE', 'RED_TAPE'],
+    arenaTags: ['BOSS_ARENA', 'OPEN_CENTRE'],
     maxHealth: 620,
     radius: 1.6,
     contactDamage: 2,

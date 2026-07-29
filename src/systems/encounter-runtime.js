@@ -31,6 +31,7 @@ import {
 } from '../entities/enemy-controllers.js';
 import { projectileHitsWorld, bounceProjectile, resolveOverlap, moveWithCollision } from './physics.js';
 import { selectEncounter, resolveSpawns, waveCount } from './encounter-select.js';
+import { BossRuntime } from './boss-runtime.js';
 
 /** How long a spawned-but-staged enemy stays inert. GDD 6.1's telegraph grace. */
 const STAGE_FADE_SECONDS = 0.35;
@@ -50,6 +51,8 @@ export class EncounterRuntime {
     this.getRun = getRun;
 
     this.projectiles = new ProjectileSystem({ events });
+    /** Drives boss phases. Shares this runtime's projectiles, pulses, and context. */
+    this.boss = new BossRuntime({ runtime: this, registry, events, getRun });
     /** @type {object[]} live hostiles, in spawn order for deterministic iteration. */
     this.hostiles = [];
     /** Transient area effects: pulses, beams, damage paths. */
@@ -137,16 +140,20 @@ export class EncounterRuntime {
     return ok;
   }
 
-  /** Bosses arrive through their own path, but share the entity model. */
+  /**
+   * Bosses arrive through their own path, but share the entity model.
+   *
+   * Returns 0 when there is no boss to spawn, which the room controller reads as
+   * "resolve normally" rather than waiting forever (R-CMB-006). A floor whose boss is
+   * missing stays completable.
+   */
   spawnBoss(roomInstance) {
-    // Boss content is not authored yet. Returning zero lets the room controller
-    // resolve rather than hanging on a boss that will never appear — and the
-    // Manager Office still opens, so the floor stays completable.
     this.currentRoom = roomInstance;
-    return 0;
+    return this.boss.spawn(roomInstance);
   }
 
   despawnAll() {
+    this.boss.reset();
     this.hostiles.length = 0;
     this.pulses.length = 0;
     this.pending.length = 0;
@@ -329,6 +336,14 @@ export class EncounterRuntime {
   // Simulation
   // -------------------------------------------------------------------------
 
+  /**
+   * Queue a callback. Shared with BossRuntime so a delayed boss blast lands through the
+   * same pending list as a telegraphed enemy death burst — one ordering, one bug surface.
+   */
+  schedule(seconds, fn) {
+    this.pending.push({ remaining: seconds, fn });
+  }
+
   /** One fixed step. Called from the PHYSICS/AI phases of the scheduler. */
   update(dt) {
     const run = this.getRun();
@@ -343,6 +358,14 @@ export class EncounterRuntime {
         this.pending.splice(i, 1);
         entry.fn();
       }
+    }
+
+    // The boss runs BEFORE the ordinary hostile loop, so a pattern that spawns adds this
+    // frame gets them ticked in the same frame rather than one frame late. dt is put on
+    // the context because the phase-transition check needs it for invulnerability decay.
+    if (this.boss.boss) {
+      ctx.dt = dt;
+      this.boss.update(dt, this.boss.bossContext(ctx));
     }
 
     for (const enemy of this.hostiles) {
@@ -363,6 +386,12 @@ export class EncounterRuntime {
       }
 
       for (const mod of enemy.modules) mod.spec.onUpdate?.(enemy, mod.params, ctx, dt);
+
+      // Bosses, their nodes, and their decoys live in `hostiles` so that physics,
+      // collision, damage, and rendering treat them as enemies (R-BSS-003) — but they
+      // have no enemy definition and no movement controller. BossRuntime drives them,
+      // and reaching for `enemy.def.movement` here is what crashed every boss fight.
+      if (enemy.isBoss || enemy.isBossNode || enemy.isBossDecoy) continue;
 
       const controller = getController(enemy.def.movement.controller);
       if (controller && !enemy.status.blocksMovement()) controller.update(enemy, ctx, dt);

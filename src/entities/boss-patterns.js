@@ -732,8 +732,8 @@ registerMovementRule('SLOW_PURSUE', {
 registerMovementRule('ORBIT_CENTRE', {
   note: 'Circles the arena centre at a fixed radius. BSS-011 circulating segments.',
   update: (boss, ctx, dt, params) => {
-    const cx = ctx.room?.centerX ?? boss.x;
-    const cy = ctx.room?.centerY ?? boss.y;
+    const cx = ctx.room?.centre?.x ?? boss.x;
+    const cy = ctx.room?.centre?.y ?? boss.y;
     boss.orbitAngle = (boss.orbitAngle ?? 0) + (params?.angularSpeed ?? 0.6) * dt;
     const r = params?.radius ?? 5;
     boss.x = cx + Math.cos(boss.orbitAngle) * r;

@@ -47,7 +47,7 @@ const departments = [
     routeRole: 'Core chapter 1',
     floors: ['FLOOR-OPEN_OFFICE_1', 'FLOOR-OPEN_OFFICE_2'],
     roomTemplatePools: ['TPL_OPEN_OFFICE_CORE', 'TPL_OPEN_OFFICE_SPECIAL', 'TPL_SHARED_SERVICE'],
-    bossPools: ['OPEN_OFFICE_1_BOSSES', 'OPEN_OFFICE_2_BOSSES'],
+    bossPools: ['BOSSPOOL-OPEN_OFFICE_1', 'BOSSPOOL-OPEN_OFFICE_2'],
     objectSets: [
       'ENV-001', 'ENV-002', 'ENV-003', 'ENV-004', 'ENV-006',
       'ENV-007', 'ENV-008', 'ENV-009', 'ENV-021', 'ENV-022',
@@ -97,7 +97,7 @@ const departments = [
     routeRole: 'Core chapter 2',
     floors: ['FLOOR-IT_1', 'FLOOR-IT_2'],
     roomTemplatePools: ['TPL_IT_CORE', 'TPL_IT_SPECIAL', 'TPL_SHARED_SERVICE'],
-    bossPools: ['IT_1_BOSSES', 'IT_2_BOSSES'],
+    bossPools: ['BOSSPOOL-IT_1', 'BOSSPOOL-IT_2'],
     objectSets: [
       'ENV-001', 'ENV-008', 'ENV-009', 'ENV-010', 'ENV-011',
       'ENV-012', 'ENV-016', 'ENV-019', 'ENV-023',
@@ -147,7 +147,7 @@ const departments = [
     routeRole: 'Core chapter 3',
     floors: ['FLOOR-OPERATIONS_1', 'FLOOR-OPERATIONS_2'],
     roomTemplatePools: ['TPL_OPERATIONS_CORE', 'TPL_OPERATIONS_SPECIAL', 'TPL_SHARED_SERVICE'],
-    bossPools: ['OPERATIONS_1_BOSSES', 'OPERATIONS_2_BOSSES'],
+    bossPools: ['BOSSPOOL-OPERATIONS_1', 'BOSSPOOL-OPERATIONS_2'],
     objectSets: [
       'ENV-001', 'ENV-004', 'ENV-009', 'ENV-013', 'ENV-016',
       'ENV-017', 'ENV-018', 'ENV-022', 'ENV-024',
@@ -197,7 +197,7 @@ const departments = [
     routeRole: 'Core chapter 4',
     floors: ['FLOOR-EXECUTIVE_1', 'FLOOR-EXECUTIVE_2'],
     roomTemplatePools: ['TPL_EXECUTIVE_CORE', 'TPL_EXECUTIVE_SPECIAL', 'TPL_SHARED_SERVICE'],
-    bossPools: ['EXECUTIVE_1_BOSSES', 'EXECUTIVE_2_BOSSES'],
+    bossPools: ['BOSSPOOL-EXECUTIVE_1', 'BOSSPOOL-EXECUTIVE_2'],
     objectSets: [
       'ENV-006', 'ENV-008', 'ENV-012', 'ENV-013', 'ENV-015',
       'ENV-018', 'ENV-020', 'ENV-023',
@@ -247,7 +247,7 @@ const departments = [
     routeRole: 'Unlockable alternate chapter 3',
     floors: ['FLOOR-FINANCE_1', 'FLOOR-FINANCE_2'],
     roomTemplatePools: ['TPL_FINANCE_CORE', 'TPL_FINANCE_SPECIAL', 'TPL_SHARED_SERVICE'],
-    bossPools: ['FINANCE_1_BOSSES', 'FINANCE_2_BOSSES'],
+    bossPools: ['BOSSPOOL-FINANCE_1', 'BOSSPOOL-FINANCE_2'],
     objectSets: [
       'ENV-001', 'ENV-012', 'ENV-013', 'ENV-018', 'ENV-020',
       'ENV-022', 'ENV-023',
@@ -297,7 +297,7 @@ const departments = [
     routeRole: 'Unlockable alternate chapter 3',
     floors: ['FLOOR-MARKETING_1', 'FLOOR-MARKETING_2'],
     roomTemplatePools: ['TPL_MARKETING_CORE', 'TPL_MARKETING_SPECIAL', 'TPL_SHARED_SERVICE'],
-    bossPools: ['MARKETING_1_BOSSES', 'MARKETING_2_BOSSES'],
+    bossPools: ['BOSSPOOL-MARKETING_1', 'BOSSPOOL-MARKETING_2'],
     objectSets: [
       'ENV-004', 'ENV-006', 'ENV-009', 'ENV-012', 'ENV-014',
       'ENV-016', 'ENV-022',
@@ -347,7 +347,7 @@ const departments = [
     routeRole: 'Unlockable alternate chapter 4',
     floors: ['FLOOR-LEGAL_1', 'FLOOR-LEGAL_2'],
     roomTemplatePools: ['TPL_LEGAL_CORE', 'TPL_LEGAL_SPECIAL', 'TPL_SHARED_SERVICE'],
-    bossPools: ['LEGAL_1_BOSSES', 'LEGAL_2_BOSSES'],
+    bossPools: ['BOSSPOOL-LEGAL_1', 'BOSSPOOL-LEGAL_2'],
     objectSets: [
       'ENV-001', 'ENV-012', 'ENV-013', 'ENV-014', 'ENV-018',
       'ENV-022', 'ENV-023',
@@ -400,7 +400,7 @@ const departments = [
     routeRole: 'Secret branch',
     floors: ['FLOOR-FACILITIES_1'],
     roomTemplatePools: ['TPL_FACILITIES_CORE', 'TPL_FACILITIES_SERVICE', 'TPL_SHARED_SERVICE'],
-    bossPools: ['FACILITIES_BOSSES'],
+    bossPools: ['BOSSPOOL-FACILITIES'],
     objectSets: [
       'ENV-004', 'ENV-010', 'ENV-011', 'ENV-016', 'ENV-017',
       'ENV-019', 'ENV-022', 'ENV-024',
@@ -450,7 +450,7 @@ const departments = [
     routeRole: 'Secret branch',
     floors: ['FLOOR-RND_1'],
     roomTemplatePools: ['TPL_RND_CORE', 'TPL_RND_TEST_CHAMBER', 'TPL_SHARED_SERVICE'],
-    bossPools: ['RND_BOSSES'],
+    bossPools: ['BOSSPOOL-RND'],
     objectSets: [
       'ENV-009', 'ENV-010', 'ENV-012', 'ENV-014', 'ENV-016',
       'ENV-019', 'ENV-022', 'ENV-023',
@@ -500,7 +500,7 @@ const departments = [
     routeRole: 'Hidden post-CEO chapter',
     floors: ['FLOOR-BOARD_1', 'FLOOR-BOARD_2'],
     roomTemplatePools: ['TPL_BOARD_CORE', 'TPL_BOARD_CHAMBER', 'TPL_SHARED_SERVICE'],
-    bossPools: ['BOARD_1_BOSSES', 'BOARD_2_BOSSES'],
+    bossPools: ['BOSSPOOL-BOARD_1', 'BOSSPOOL-BOARD_2'],
     objectSets: [
       'ENV-006', 'ENV-008', 'ENV-012', 'ENV-013', 'ENV-020', 'ENV-023',
     ],
@@ -551,7 +551,7 @@ const departments = [
     roomTemplatePools: [
       'TPL_PARENT_COMPANY_CORE', 'TPL_PARENT_COMPANY_RECOMBINANT', 'TPL_SHARED_SERVICE',
     ],
-    bossPools: ['PARENT_COMPANY_BOSSES'],
+    bossPools: ['BOSSPOOL-PARENT'],
     objectSets: [
       'ENV-001', 'ENV-006', 'ENV-008', 'ENV-012', 'ENV-018',
       'ENV-021', 'ENV-023',
@@ -601,7 +601,7 @@ const departments = [
     routeRole: 'Ultra hidden chapter',
     floors: ['FLOOR-CONGLOMERATE_1'],
     roomTemplatePools: ['TPL_CONGLOMERATE_CORE', 'TPL_CONGLOMERATE_MERGED', 'TPL_SHARED_SERVICE'],
-    bossPools: ['CONGLOMERATE_BOSSES'],
+    bossPools: ['BOSSPOOL-CONGLOMERATE'],
     objectSets: [
       'ENV-008', 'ENV-010', 'ENV-012', 'ENV-013', 'ENV-017',
       'ENV-019', 'ENV-023', 'ENV-024',
@@ -651,7 +651,7 @@ const departments = [
     routeRole: 'Terminal hidden arena',
     floors: ['FLOOR-OWNERSHIP_1'],
     roomTemplatePools: ['TPL_OWNERSHIP_ARENA', 'TPL_OWNERSHIP_APPROACH'],
-    bossPools: ['OWNERSHIP_BOSSES'],
+    bossPools: ['BOSSPOOL-OWNERSHIP'],
     objectSets: ['ENV-006', 'ENV-008', 'ENV-012', 'ENV-020', 'ENV-021'],
     hazardSets: ['GLASS', 'PRESSURE', 'DARKNESS', 'VOTE'],
     itemAffinities: {

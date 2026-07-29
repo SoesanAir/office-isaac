@@ -130,8 +130,7 @@ defineHook('PULL_TO_CENTER', {
   fn: (ctx, params) => {
     const room = ctx.room;
     if (!room) return;
-    const cx = room.centerX;
-    const cy = room.centerY;
+    const { x: cx, y: cy } = room.centre;
     for (const enemy of living(ctx)) {
       // "Movable" excludes turrets, anchored formations, and bosses. Yanking a
       // stationary enemy off its authored position would break the room's design.

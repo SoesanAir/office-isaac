@@ -155,6 +155,10 @@ export class BossRuntime {
       weakPoint: null,
       charge: null,
       lockedTarget: null,
+      // Variant behaviour modules do not apply to bosses, but the shared hostile loop
+      // iterates this for every entity in `hostiles` — an absent array is a crash on
+      // frame one, not a missing feature.
+      modules: [],
     };
 
     // Its own deterministic stream, so a boss's rolls cannot shift a pedestal or an
@@ -482,6 +486,8 @@ export class BossRuntime {
           collisionLayer: LAYER.ENEMY,
           isBossNode: true,
           status: new StatusContainer(false),
+          modules: [],
+          cooldowns: new Map(),
           tags: new Set(),
           required: false,
           hitFlash: 0,
@@ -538,6 +544,8 @@ export class BossRuntime {
             allegiance: ALLEGIANCE.ENEMY,
             collisionLayer: LAYER.ENEMY,
             status: new StatusContainer(false),
+            modules: [],
+            cooldowns: new Map(),
             tags: new Set(),
             required: false,
             hitFlash: 0,
@@ -596,6 +604,7 @@ export class BossRuntime {
     // lets an arena be authored for its boss, so an explicit anchor wins.
     const anchor = roomInstance.zonesOf?.(SPAWN_ZONE.BOSS_ANCHOR)?.[0];
     if (anchor) return { x: anchor.x + anchor.w / 2, y: anchor.y + anchor.h / 2 };
-    return { x: roomInstance.centerX, y: roomInstance.centerY };
+    const c = roomInstance.centre;
+    return { x: c.x, y: c.y };
   }
 }

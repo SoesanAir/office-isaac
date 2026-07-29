@@ -689,6 +689,43 @@ const strings = {
   'transformation.middle_management.name': 'Middle Management',
   'transformation.middle_management.description': 'Somewhere in all the paperwork you acquired a direct report. A small assistant trails after you, picks up what you drop, and becomes briefly and visibly thrilled every time a manager goes down.',
 
+
+  // -------------------------------------------------------------------------
+  // Bosses (Appendix E). Names are the job titles from the roster, verbatim.
+  //
+  // The comedy is that these are real corporate roles rather than invented monsters,
+  // so renaming them would throw away the whole joke — the same rule the weapon and
+  // enemy sections follow. No name hints at a phase count or a mechanic (D-016).
+  // -------------------------------------------------------------------------
+  'boss.team_lead.name': 'The Team Lead',
+  'boss.copy_chief.name': 'Copy Chief',
+  'boss.scrum_master.name': 'Scrum Master',
+  'boss.the_open_plan.name': 'The Open Plan',
+  'boss.sysadmin.name': 'Sysadmin',
+  'boss.helpdesk_hydra.name': 'Helpdesk Hydra',
+  'boss.legacy_system.name': 'Legacy System',
+  'boss.firewall.name': 'Firewall',
+  'boss.the_bottleneck.name': 'The Bottleneck',
+  'boss.shift_manager.name': 'Shift Manager',
+  'boss.supply_chain.name': 'Supply Chain',
+  'boss.quarter_end.name': 'Quarter End',
+  'boss.vp_of_everything.name': 'VP of Everything',
+  'boss.chief_operating_officer.name': 'Chief Operating Officer',
+  'boss.the_boardroom.name': 'The Boardroom',
+  'boss.ceo.name': 'CEO',
+  'boss.the_auditor.name': 'The Auditor',
+  'boss.budget_committee.name': 'Budget Committee',
+  'boss.brand_manager.name': 'Brand Manager',
+  'boss.viral_campaign.name': 'Viral Campaign',
+  'boss.general_counsel.name': 'General Counsel',
+  'boss.red_tape.name': 'Red Tape',
+  'boss.head_of_facilities.name': 'Head of Facilities',
+  'boss.prototype_zero.name': 'Prototype Zero',
+  'boss.the_board.name': 'The Board',
+  'boss.hostile_takeover.name': 'Hostile Takeover',
+  'boss.parent_company.name': 'Parent Company',
+  'boss.the_conglomerate.name': 'The Conglomerate',
+  'boss.the_beneficial_owner.name': 'The Beneficial Owner',
   // -------------------------------------------------------------------------
   // Enemies (Appendix D). Names are job titles, because that is the joke.
   // -------------------------------------------------------------------------

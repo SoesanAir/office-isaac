@@ -91,7 +91,7 @@ const floors = [
     ],
     minDeadEnds: MIN_DEAD_ENDS,
     encounterPools: ['OPEN_OFFICE_1_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS'],
-    bossPool: 'OPEN_OFFICE_1_BOSSES',
+    bossPool: 'BOSSPOOL-OPEN_OFFICE_1',
     difficulty: 'standard',
     supplyClosetCost: 'NONE', // ROOM-005: the only unlocked supply closet in the game
     shopDoorCost: 'NONE',     // GDD 9.4: free on Open Office I only
@@ -122,7 +122,7 @@ const floors = [
     encounterPools: [
       'OPEN_OFFICE_2_ENCOUNTERS', 'CROSS_DEPARTMENT_EARLY_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'OPEN_OFFICE_2_BOSSES',
+    bossPool: 'BOSSPOOL-OPEN_OFFICE_2',
     difficulty: 'standard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -166,7 +166,7 @@ const floors = [
     encounterPools: [
       'IT_1_ENCOUNTERS', 'CROSS_DEPARTMENT_EARLY_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'IT_1_BOSSES',
+    bossPool: 'BOSSPOOL-IT_1',
     difficulty: 'standard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -205,7 +205,7 @@ const floors = [
     encounterPools: [
       'IT_2_ENCOUNTERS', 'CROSS_DEPARTMENT_MID_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'IT_2_BOSSES',
+    bossPool: 'BOSSPOOL-IT_2',
     difficulty: 'standard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -251,7 +251,7 @@ const floors = [
     encounterPools: [
       'OPERATIONS_1_ENCOUNTERS', 'CROSS_DEPARTMENT_MID_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'OPERATIONS_1_BOSSES',
+    bossPool: 'BOSSPOOL-OPERATIONS_1',
     difficulty: 'standard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -292,7 +292,7 @@ const floors = [
     encounterPools: [
       'OPERATIONS_2_ENCOUNTERS', 'CROSS_DEPARTMENT_MID_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'OPERATIONS_2_BOSSES',
+    bossPool: 'BOSSPOOL-OPERATIONS_2',
     difficulty: 'standard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -342,7 +342,7 @@ const floors = [
     encounterPools: [
       'EXECUTIVE_1_ENCOUNTERS', 'CROSS_DEPARTMENT_LATE_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'EXECUTIVE_1_BOSSES',
+    bossPool: 'BOSSPOOL-EXECUTIVE_1',
     difficulty: 'standard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -386,7 +386,7 @@ const floors = [
     encounterPools: [
       'EXECUTIVE_2_ENCOUNTERS', 'CROSS_DEPARTMENT_LATE_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'EXECUTIVE_2_BOSSES',
+    bossPool: 'BOSSPOOL-EXECUTIVE_2',
     difficulty: 'standard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -432,7 +432,7 @@ const floors = [
     encounterPools: [
       'FINANCE_1_ENCOUNTERS', 'CROSS_DEPARTMENT_MID_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'FINANCE_1_BOSSES',
+    bossPool: 'BOSSPOOL-FINANCE_1',
     difficulty: 'standard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -472,7 +472,7 @@ const floors = [
     encounterPools: [
       'FINANCE_2_ENCOUNTERS', 'CROSS_DEPARTMENT_MID_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'FINANCE_2_BOSSES',
+    bossPool: 'BOSSPOOL-FINANCE_2',
     difficulty: 'standard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -519,7 +519,7 @@ const floors = [
     encounterPools: [
       'MARKETING_1_ENCOUNTERS', 'CROSS_DEPARTMENT_MID_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'MARKETING_1_BOSSES',
+    bossPool: 'BOSSPOOL-MARKETING_1',
     difficulty: 'standard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -560,7 +560,7 @@ const floors = [
     encounterPools: [
       'MARKETING_2_ENCOUNTERS', 'CROSS_DEPARTMENT_MID_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'MARKETING_2_BOSSES',
+    bossPool: 'BOSSPOOL-MARKETING_2',
     difficulty: 'standard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -614,7 +614,7 @@ const floors = [
     encounterPools: [
       'LEGAL_1_ENCOUNTERS', 'CROSS_DEPARTMENT_LATE_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'LEGAL_1_BOSSES',
+    bossPool: 'BOSSPOOL-LEGAL_1',
     difficulty: 'standard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -658,7 +658,7 @@ const floors = [
     encounterPools: [
       'LEGAL_2_ENCOUNTERS', 'CROSS_DEPARTMENT_LATE_ENCOUNTERS', 'HR_ROVING_ENCOUNTERS',
     ],
-    bossPool: 'LEGAL_2_BOSSES',
+    bossPool: 'BOSSPOOL-LEGAL_2',
     difficulty: 'hard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -703,7 +703,7 @@ const floors = [
     ],
     minDeadEnds: MIN_DEAD_ENDS,
     encounterPools: ['FACILITIES_ENCOUNTERS', 'CROSS_DEPARTMENT_MID_ENCOUNTERS'],
-    bossPool: 'FACILITIES_BOSSES',
+    bossPool: 'BOSSPOOL-FACILITIES',
     difficulty: 'hard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -748,7 +748,7 @@ const floors = [
     ],
     minDeadEnds: MIN_DEAD_ENDS,
     encounterPools: ['RND_ENCOUNTERS', 'CROSS_DEPARTMENT_MID_ENCOUNTERS'],
-    bossPool: 'RND_BOSSES',
+    bossPool: 'BOSSPOOL-RND',
     difficulty: 'hard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -791,7 +791,7 @@ const floors = [
     ],
     minDeadEnds: MIN_DEAD_ENDS,
     encounterPools: ['BOARD_1_ENCOUNTERS', 'CROSS_DEPARTMENT_LATE_ENCOUNTERS'],
-    bossPool: 'BOARD_1_BOSSES',
+    bossPool: 'BOSSPOOL-BOARD_1',
     difficulty: 'hard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -828,7 +828,7 @@ const floors = [
     ],
     minDeadEnds: MIN_DEAD_ENDS,
     encounterPools: ['BOARD_2_ENCOUNTERS', 'CROSS_DEPARTMENT_LATE_ENCOUNTERS'],
-    bossPool: 'BOARD_2_BOSSES',
+    bossPool: 'BOSSPOOL-BOARD_2',
     difficulty: 'hard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -875,7 +875,7 @@ const floors = [
     encounterPools: [
       'PARENT_COMPANY_ENCOUNTERS', 'ECHO_VARIANT_ENCOUNTERS', 'CROSS_DEPARTMENT_LATE_ENCOUNTERS',
     ],
-    bossPool: 'PARENT_COMPANY_BOSSES',
+    bossPool: 'BOSSPOOL-PARENT',
     difficulty: 'hard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -922,7 +922,7 @@ const floors = [
     encounterPools: [
       'CONGLOMERATE_ENCOUNTERS', 'ECHO_VARIANT_ENCOUNTERS', 'CROSS_DEPARTMENT_LATE_ENCOUNTERS',
     ],
-    bossPool: 'CONGLOMERATE_BOSSES',
+    bossPool: 'BOSSPOOL-CONGLOMERATE',
     difficulty: 'hard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
@@ -961,7 +961,7 @@ const floors = [
     ],
     minDeadEnds: MIN_DEAD_ENDS,
     encounterPools: ['OWNERSHIP_ENCOUNTERS', 'ECHO_VARIANT_ENCOUNTERS'],
-    bossPool: 'OWNERSHIP_BOSSES',
+    bossPool: 'BOSSPOOL-OWNERSHIP',
     difficulty: 'hard',
     supplyClosetCost: 'ONE_CARD',
     shopDoorCost: 'ONE_CARD',
