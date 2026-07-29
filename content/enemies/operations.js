@@ -6,7 +6,11 @@
  *           authored wind-up/active/recovery, visible support links), 14.4 (department
  *           continuity), 14.5 (R-ENM-001..008), 6.6 (cost is the currency encounters
  *           spend), 5.1 (player baseline: 10 damage per hit, 0.45s interval, 5.5 wu/s),
- *           5.2 (health in half-units), 13.2 (conveyors and machine hazards).
+ *           5.2 (health in half-units), 13.2 (conveyors and machine hazards),
+ *           R-ENM-004 (a later department gets native enemies rather than restatted earlier
+ *           ones: all twelve here are new behaviours. The only reuse anywhere in the roster
+ *           is ENM-045 Golden Drone, which Appendix D marks as deliberate continuity and
+ *           holds at a rarity that cannot crowd out new content).
  *
  * The conventions from content/enemies/open-office-it.js apply unchanged: cost is quoted
  * from D.1 rather than re-derived, health is expressed in player hits, contactDamage is

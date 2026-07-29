@@ -5,6 +5,9 @@
  *           whether breaking an object yields nothing, a resource, a hazard, or a
  *           hostile surprise), 13.3 (per-object destruction behaviour), 13.4
  *           (hidden contents), R-ENV-003 (object contents use object-scoped RNG),
+ *           R-ECO-004 (a destroyed object rolls from its OWN scoped loot table; the
+ *           room-clear and pedestal pools are unreachable from here, which is why these
+ *           hooks take a hazard or pickup kind rather than a pool id),
  *           R-ENV-004 (no required door, blast point, pickup, or spawn is
  *           permanently blocked), R-ENV-006 (chain reactions use bounded
  *           propagation), 9.2 (pickups), 22.5 (no switch statements on content).

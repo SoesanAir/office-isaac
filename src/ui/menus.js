@@ -7,7 +7,11 @@
  *           colour-vision presets, reduced motion), 21.1 (settings and profile are save
  *           domains), 21.2 (restarting a run uses hold confirmation and deliberately
  *           discards it), R-PRG-004 / D-016 (the collection shows what was found and never
- *           a denominator), R-UIX-005 (no mechanic depends on colour alone).
+ *           a denominator), R-UIX-005 (no mechanic depends on colour alone),
+ *           R-UIX-003 (unknown content totals stay hidden — see #collectionItems),
+ *           R-UIX-004 (accessibility settings expose no loot-weight or rarity tuning:
+ *           #optionsItems deliberately holds audio, display, input and privacy rows and
+ *           nothing that reaches generation).
  *
  * ## One screen at a time, and one owner of "is the game paused"
  *

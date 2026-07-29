@@ -340,6 +340,13 @@ export function departmentCoreSet(spec) {
       // long stretches of a floor with nothing in them, which reads as unfinished rather
       // than as pacing. A three-tile-wide corridor is a legitimate small fight.
       encounterTags: ['TINY', 'HALLWAY', 'TIGHT_CORRIDOR_ONLY'],
+      // East-west only. The carve is a single horizontal band, so a north or south door
+      // would open onto solid wall — and because that is only detectable once a floor is
+      // assembled, the generator's only recourse is to discard the entire floor and start
+      // again. Offering all four sides here was what pushed the department floors to an
+      // 18-33% regeneration rate against a 15% ceiling; restricting the sockets to the axis
+      // the corridor actually connects took every department under the threshold.
+      socketOpts: { sides: ['EAST', 'WEST'], secretSides: ['NORTH', 'SOUTH'] },
       objectAnchors: scatter([[6, 5, 0.4], [15, 5, 0.4]]),
       vignette: vignettes.hallAlt ?? vignettes.hall,
       weight: 1.6,

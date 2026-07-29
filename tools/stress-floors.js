@@ -36,7 +36,14 @@ const THRESHOLDS = {
   maxFailureRate: 0.0,
   /** GDD 20.7 budget, measured as a p99 so one slow outlier does not mask health. */
   maxP99Ms: 250,
-  /** A floor with no secret room at all should be rare, not routine. */
+  /**
+   * A floor with no secret room at all should be rare, not routine — but only where the
+   * definition asks for one. The expectation is derived from the floor's own declared
+   * probabilities rather than applied flatly, because FLOOR-OWNERSHIP_1 deliberately declares
+   * zero (GDD 9.4: an almost-empty space above every hierarchy; a service closet there would
+   * contradict a room that visibly contains no work). A flat threshold reported that intent as
+   * a defect, which is how a gate gets ignored.
+   */
   minSecretRate: 0.5,
 };
 
@@ -154,7 +161,11 @@ function main() {
     if (stat.p99Ms > THRESHOLDS.maxP99Ms) {
       stat.breaches.push(`p99 ${stat.p99Ms.toFixed(1)}ms exceeds ${THRESHOLDS.maxP99Ms}ms`);
     }
-    if (stat.secretRate < THRESHOLDS.minSecretRate) {
+    // Only judge the secret rate against definitions that actually want secrets.
+    const wantsSecrets = (resolved.secretRooms?.maintenanceAccess ?? 0)
+      + (resolved.secretRooms?.forgottenCubicle ?? 0) > 0;
+    stat.secretsExpected = wantsSecrets;
+    if (wantsSecrets && stat.secretRate < THRESHOLDS.minSecretRate) {
       stat.breaches.push(`secret-room rate ${pct(stat.secretRate)} below ${pct(THRESHOLDS.minSecretRate)}`);
     }
     if (stat.breaches.length > 0) anyBreach = true;
@@ -206,7 +217,7 @@ function formatStat(stat, count) {
   lines.push(`  mean nodes           ${stat.meanNodes.toFixed(1)}`);
   lines.push(`  mean dead ends       ${stat.meanDeadEnds.toFixed(1)}`);
   lines.push(`  mean boss distance   ${stat.meanBossDistance.toFixed(1)}`);
-  lines.push(`  floors with a secret ${pct(stat.secretRate)}`);
+  lines.push(`  floors with a secret ${pct(stat.secretRate)}${stat.secretsExpected === false ? ' (none by design)' : ''}`);
   lines.push(`  template coverage    ${JSON.stringify(stat.templateCoverage)}`);
   if (stat.errors.size > 0) {
     lines.push('  failure reasons:');

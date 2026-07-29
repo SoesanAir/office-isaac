@@ -1,0 +1,82 @@
+# Continuous integration and GitHub Pages deployment.
+#
+# GDD refs: 22.1 (no build step — the repository is the deployable artefact), 22.6 (a
+#           feature is not done without a test), 24 (shipping gates), R-QA-001..005.
+#
+# Two jobs, and the split matters: `gate` runs on every push and pull request, while
+# `deploy` only runs on the default branch AND only after the gate passes. A broken build
+# cannot reach Pages, and a pull request cannot deploy at all.
+#
+# There is no build step because there is nothing to build: the game is vanilla ES modules
+# with zero runtime dependencies, so Pages serves the checked-out repository as-is. That is
+# also why `npm ci` is absent — there is no lockfile to install from, and adding one would
+# mean adding a dependency the game does not have.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  # Manual runs, for re-deploying without a code change.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push supersedes an in-flight run for the same ref; a deploy in progress is
+  # allowed to finish so Pages is never left half-updated.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Shipping gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # package.json declares >=20. 20 is the floor rather than the target so a
+          # syntax-level regression against the stated minimum fails here.
+          node-version: '20'
+
+      # Runs tests, content validation, generation stress, traceability, and the static
+      # deployability check, and reports all of them rather than stopping at the first.
+      - name: Run every gate
+        run: npm run qa
+
+      # The traceability document is generated, so a stale committed copy is a lie. This
+      # regenerates it and fails if the result differs from what is checked in.
+      - name: Traceability document is current
+        run: |
+          npm run traceability
+          git diff --exit-code -- docs/REQUIREMENT_TRACEABILITY.md \
+            || (echo "::error::docs/REQUIREMENT_TRACEABILITY.md is stale. Run npm run traceability and commit it." && exit 1)
+
+  deploy:
+    name: Deploy to Pages
+    needs: gate
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      # The whole repository is the artefact. No build, no bundler, no transform: index.html
+      # loads src/main.js as a module and the browser resolves the rest.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

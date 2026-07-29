@@ -141,8 +141,17 @@ export function buildSockets(cells, opts = {}) {
   const deltas = { NORTH: [0, -1], SOUTH: [0, 1], EAST: [1, 0], WEST: [-1, 0] };
   // Stable authoring order: row-major cells, then N/E/S/W.
   const ordered = [...cells].sort((a, b) => (a[1] - b[1]) || (a[0] - b[0]));
+  // `sides` restricts which walls may carry a door at all.
+  //
+  // A room whose interior only connects along one axis — a horizontal corridor, say — must
+  // not advertise a north socket. The generator would pick it for a node needing one, and
+  // the floor validator would then reject the whole floor for having doors in separate
+  // regions, forcing a full regeneration. That showed up as an 18-33% regeneration rate on
+  // the department floors against a 15% ceiling.
+  const allowed = opts.sides ? new Set(opts.sides) : null;
   for (const [cx, cy] of ordered) {
     for (const side of ['NORTH', 'EAST', 'SOUTH', 'WEST']) {
+      if (allowed && !allowed.has(side)) continue;
       const [dx, dy] = deltas[side];
       if (cellSet.has(`${cx + dx},${cy + dy}`)) continue;
       const socketClasses = [...classes];

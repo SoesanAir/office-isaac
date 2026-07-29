@@ -72,6 +72,7 @@ export class Player {
     this.flying = false;
 
     // --- build (GDD 8.1 slot table) ---------------------------------------
+    /** R-WPN-001: exactly one primary weapon slot. Picking one up replaces it. */
     this.weaponId = null;
     /** Ordered acquisition list; order is part of deterministic effect sorting. */
     this.passiveIds = [];
@@ -80,6 +81,10 @@ export class Player {
     this.activeCharge = 0;
     /** One Action Card OR one Supplement (GDD 9.1). */
     this.pocket = null;
+    /**
+     * R-CON-005: an item may raise this, but the pocket is never a menu. Capacity above one
+     * still means "swap on contact" rather than opening an inventory to choose.
+     */
     this.pocketCapacity = 1;
     this.charmId = null;
     this.transformationIds = [];

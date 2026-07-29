@@ -6,6 +6,13 @@
  *           ordinary application close), 21.3 (seeds and modes), R-TEC-007 (a save
  *           written by an older content version loads or is rejected cleanly, never
  *           half-applied), R-TEC-008 (run continue resumes at a safe boundary),
+ *           R-SAV-001 (profile and run saves are versioned and migratable — every payload
+ *           carries schemaVersion, and `read` merges over the current defaults so a save
+ *           written before a field existed gains that field rather than leaving it
+ *           undefined), R-SAV-002 (a corrupted primary save falls back to a validated
+ *           backup), R-SAV-005 (telemetry is not required for save, progression, or
+ *           balance: nothing here reads settings.telemetry, and the game is fully playable
+ *           and persistent with it off),
  *           R-PRG-001 (unlocks are idempotent across save and reload), D-016 (no total
  *           counts are stored in a way that would let the UI imply them).
  *
