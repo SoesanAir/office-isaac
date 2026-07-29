@@ -31,7 +31,18 @@ import { loadContent } from '../content/index.js';
 import './register-all.js';
 
 /** Distance in world units at which touching a door triggers traversal. */
-const DOOR_TRIGGER_RADIUS = 0.9;
+/**
+ * How close the player must be to a door to use it.
+ *
+ * Exported so tests assert against the real value rather than a copy that can drift.
+ *
+ * 1.2 rather than 0.9. The old value was knife-edge: after clampToRoom() the closest a
+ * player could get to a NORTH or WEST door was 0.92, so those doors were untriggerable by
+ * two hundredths of a unit and a dead-end room facing either way could not be left. The
+ * clamp is fixed too (physics.js), but a threshold that depends on sub-tile precision is a
+ * bug waiting to recur.
+ */
+export const DOOR_TRIGGER_RADIUS = 1.2;
 
 class Game {
   constructor(canvas) {
@@ -368,6 +379,11 @@ class Game {
     clampToRoom(player, room.collision);
     if (input.aimDirection) player.facing = input.aimDirection;
     else if (dx !== 0 || dy !== 0) player.facing = facingFromVector(dx, dy);
+  }
+
+  /** Run one door-traversal pass. Test seam: the loop is not stepped in tests. */
+  checkDoorsForTest() {
+    this.#checkDoors(0);
   }
 
   /**

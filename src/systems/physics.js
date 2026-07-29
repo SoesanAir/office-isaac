@@ -23,6 +23,12 @@
 import { LAYER, TILE } from '../core/constants.js';
 import { circleBoxOverlap, clamp } from '../core/math.js';
 
+/**
+ * Thickness of the wall ring in tiles, matching WALL in core/constants.js.
+ * Door openings are carved through this band, so it is walkable at a socket.
+ */
+const WALL_BAND = 1;
+
 /** Geometry characters and what they block. */
 const SOLID_CHARS = new Set(['#']);
 const PIT_CHARS = new Set(['x']);
@@ -349,10 +355,22 @@ export function hasLineOfSight(x0, y0, x1, y1, collision, { blockOnLowCover = fa
  * shove an entity into the void even if a frame's math goes wrong.
  */
 export function clampToRoom(entity, collision) {
-  const minX = collision.origin.x + entity.radius;
-  const minY = collision.origin.y + entity.radius;
-  const maxX = collision.origin.x + collision.w - entity.radius;
-  const maxY = collision.origin.y + collision.h - entity.radius;
+  // The box is the interior EXPANDED by the wall band, not the interior itself.
+  //
+  // Door openings are carved through that band (one tile outside the grid on each side), so
+  // clamping to the bare interior made every NORTH and WEST door unreachable: the trigger
+  // point sat half a unit outside and the closest a 0.42-radius player could get was 0.92.
+  // A dead-end room whose only door faced north or west could not be left at all.
+  //
+  // Widening is safe because containment is not this function's job. `isSolidTile` treats
+  // every out-of-bounds tile as solid unless it falls inside a carved opening, so
+  // moveWithCollision already keeps the player inside the room and lets them stand in a
+  // doorway. This stays what its name says: a last-resort guard against a frame of bad
+  // knockback or conveyor math throwing an entity into the void.
+  const minX = collision.origin.x - WALL_BAND + entity.radius;
+  const minY = collision.origin.y - WALL_BAND + entity.radius;
+  const maxX = collision.origin.x + collision.w + WALL_BAND - entity.radius;
+  const maxY = collision.origin.y + collision.h + WALL_BAND - entity.radius;
   entity.x = clamp(entity.x, minX, maxX);
   entity.y = clamp(entity.y, minY, maxY);
 }

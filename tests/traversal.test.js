@@ -284,3 +284,94 @@ test('the map marks a room that still holds loot, once', async () => {
   room.pickups[0].collected = false;
   assert.equal(hasLoot(node), false);
 });
+
+// ---------------------------------------------------------------------------
+// Reaching a door, not merely standing where one is
+// ---------------------------------------------------------------------------
+
+test('the player can get close enough to every door to trigger it', async () => {
+  // The tests above proved a doorway is *walkable*. This proves it is *reachable*.
+  //
+  // clampToRoom() pins the player inside the interior grid every frame as a last-resort
+  // guard. But NORTH and WEST door trigger points sit half a unit OUTSIDE that grid, so
+  // the closest a 0.42-radius player could get was 0.92 — just past the 0.90 trigger
+  // radius. Every north and west door in the game was untriggerable, and a dead-end room
+  // whose single door faced either way was a permanent trap.
+  const { clampToRoom } = await import('../src/systems/physics.js');
+  const { DOOR_TRIGGER_RADIUS } = await import('../src/main.js');
+
+  const worst = { NORTH: 0, SOUTH: 0, EAST: 0, WEST: 0 };
+  for (const seed of SEEDS) {
+    for (const room of roomsOf(floorFor(seed))) {
+      for (const [, pos] of room.doorWorldPositions) {
+        if (!pos.door.discovered) continue;
+        // Aim straight at the door, then apply the same clamp the movement pass applies.
+        const probe = { x: pos.x, y: pos.y, radius: PLAYER_RADIUS };
+        clampToRoom(probe, room.collision);
+        const gap = Math.hypot(probe.x - pos.x, probe.y - pos.y);
+        if (gap > worst[pos.side]) worst[pos.side] = gap;
+      }
+    }
+  }
+  for (const [side, gap] of Object.entries(worst)) {
+    assert.ok(
+      gap < DOOR_TRIGGER_RADIUS,
+      `${side} doors sit ${gap.toFixed(3)} beyond reach, trigger radius is ${DOOR_TRIGGER_RADIUS}`,
+    );
+  }
+});
+
+test('the clamp still keeps the player inside the room', async () => {
+  // Widening the clamp to let the player into a doorway must not let them wander into the
+  // void. Movement collision is the real containment — the clamp is only a safety net —
+  // so a position well outside the room must still be pulled back to somewhere legal.
+  const { clampToRoom } = await import('../src/systems/physics.js');
+  for (const room of roomsOf(floorFor('OFFICE-DOOR-0001'))) {
+    const far = { x: room.rect.x - 50, y: room.rect.y - 50, radius: PLAYER_RADIUS };
+    clampToRoom(far, room.collision);
+    assert.ok(far.x > room.rect.x - 5, `clamp let the player ${room.rect.x - far.x} units west of the room`);
+    assert.ok(far.y > room.rect.y - 5, `clamp let the player ${room.rect.y - far.y} units north of the room`);
+  }
+});
+
+test('a single-door room can always be left once it is clear', async () => {
+  // The reported symptom, asserted directly: walk into every dead-end room, clear it, walk
+  // back at the door, and require the run to move to another node.
+  const game = await bootGame('OFFICE-DEADEND-0001');
+  const floor = game.run.floor;
+  const deadEnds = [...floor.nodes.values()].filter((n) => (n.doors || []).length === 1);
+  assert.ok(deadEnds.length > 0, 'this seed produced no dead-end rooms');
+
+  let checked = 0;
+  for (const node of deadEnds) {
+    const door = node.doors[0];
+    // An undiscovered secret door is correctly impassable until it is blasted open
+    // (GDD 11.7). Such a room cannot be entered in the first place, so it is not a trap.
+    if (!door.discovered) continue;
+    game.run.enterRoom(node, door.socketId);
+    const room = game.run.room;
+    // Clear it, so doors are open and the seal is not what we are measuring.
+    node.cleared = true;
+    game.roomController.enter(room, { fromSocketId: door.socketId });
+    game.runtime.despawnAll();
+    game.doorCooldown = 0;
+
+    const pos = room.doorWorldPositions.get(door.socketId);
+    assert.ok(pos, `${node.id} has no world position for its only door`);
+
+    // Stand as close to the door as the movement clamp permits, then run the door pass.
+    const { clampToRoom } = await import('../src/systems/physics.js');
+    game.run.player.x = pos.x;
+    game.run.player.y = pos.y;
+    clampToRoom(game.run.player, room.collision);
+
+    const before = game.run.roomNode.id;
+    game.checkDoorsForTest();
+    assert.notEqual(
+      game.run.roomNode.id, before,
+      `${node.id}: standing at its only ${pos.side} door did not traverse it`,
+    );
+    checked += 1;
+  }
+  assert.ok(checked > 0);
+});
