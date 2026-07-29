@@ -17,6 +17,7 @@ import { loadContent } from '../content/index.js';
 import { findMissingHooks } from '../src/systems/effects.js';
 import { findMissingAdapters } from '../src/systems/adapters.js';
 import { findMissingBehaviours } from '../src/entities/enemy-controllers.js';
+import { findMissingBossPatterns } from '../src/entities/boss-patterns.js';
 import { allSpriteDefs, silhouetteSignature } from '../src/render/sprites.js';
 import '../src/register-all.js';
 
@@ -45,6 +46,10 @@ for (const miss of findMissingAdapters(registry)) {
 // fallback-to-idle situation.
 for (const miss of findMissingBehaviours(registry)) {
   err(`${miss.id}`, `${miss.kind} "${miss.name}" is not registered`);
+}
+// Boss patterns and movement rules, same rule for the same reason (GDD 15.4).
+for (const miss of findMissingBossPatterns(registry)) {
+  err(`boss:${miss.id}.${miss.phase}`, `${miss.kind} "${miss.name}" is not registered`);
 }
 
 // -- sprite references ------------------------------------------------------
