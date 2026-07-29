@@ -23,6 +23,7 @@ import { CombatResolver } from './systems/combat.js';
 import { RoomController, ROOM_STATE } from './systems/room-state.js';
 import { UnlockService } from './systems/unlocks.js';
 import { SaveService } from './systems/save.js';
+import { AudioEngine } from './audio/engine.js';
 import { EncounterRuntime } from './systems/encounter-runtime.js';
 import { AttackGraphResolver } from './systems/attack-graph.js';
 import { PlayerAttackSystem } from './systems/player-attack.js';
@@ -122,8 +123,16 @@ class Game {
       getRun: () => this.run,
     });
 
+    this.audio = new AudioEngine({
+      registry: this.registry,
+      events: this.events,
+      settings: this.settings,
+      loc: (key) => this.loc(key),
+    });
+
     this.#installSystems();
     this.#installPersistence();
+    this.#installAudio();
     this.#installListeners();
     this.loop = new GameLoop((dt) => this.update(dt), (alpha, frameDt) => this.render(alpha, frameDt));
   }
@@ -189,10 +198,46 @@ class Game {
     }
   }
 
+  /**
+   * Audio wiring.
+   *
+   * The context is created on first input rather than at boot: every browser refuses to start
+   * audio outside a user gesture, and one created at page load begins suspended and stays
+   * that way. So the game is silent until the player touches a key, which is both required
+   * and reasonable.
+   */
+  #installAudio() {
+    // Music follows the department, and layers gate on room state (GDD 19.3) rather than the
+    // track crossfading — a room turning dangerous adds a line to what is already playing.
+    this.events.on(EVENTS.FLOOR_ENTERED, () => {
+      const music = this.run.department?.presentation?.music
+        ?? this.registry.get('department', this.run.floorDef?.department)?.presentation?.music;
+      if (music) this.audio.playMusic(music);
+    }, { priority: LISTENER_PRIORITY.PRESENTATION });
+
+    this.events.on(EVENTS.ROOM_WAVE_STARTED, () => this.audio.setIntensity('COMBAT'), {
+      priority: LISTENER_PRIORITY.PRESENTATION,
+    });
+    this.events.on(EVENTS.BOSS_SPAWNED, () => this.audio.setIntensity('BOSS'), {
+      priority: LISTENER_PRIORITY.PRESENTATION,
+    });
+    this.events.on(EVENTS.ROOM_CLEARED, () => this.audio.setIntensity('ALWAYS'), {
+      priority: LISTENER_PRIORITY.PRESENTATION,
+    });
+
+    // R-AUD-003: the caption is the audio for a player who has it off, so it goes through
+    // the same banner queue as anything else the player must read.
+    this.events.on(EVENTS.CAPTION_SHOWN, (e) => {
+      this.hud.queueCaption?.(e);
+    }, { priority: LISTENER_PRIORITY.PRESENTATION });
+  }
+
   /** Register per-phase work in GDD 20.5 order. */
   #installSystems() {
     this.scheduler
       .register(PHASE.INPUT, 'sampleInput', () => {
+        // First real input is the gesture the browser wants before it will start audio.
+        if (!this.audio.ready && this.input.hadAnyInput?.()) this.audio.unlock();
         this.frameInput = this.input.sample({
           eightDirection: this.run.player?.hasPassive('ITM-012') ?? false,
         });
@@ -212,6 +257,7 @@ class Game {
       .register(PHASE.ROOM_CLEAR, 'roomLifecycle', (dt) => {
         this.roomController.tick(dt, { hostiles: this.runtime.hostiles, player: this.run.player });
       })
+      .register(PHASE.PRESENTATION, 'music', () => this.audio.update())
       .register(PHASE.PRESENTATION, 'hudBanners', (dt) => {
         this.hud.update(dt, this.roomController.isSealed);
         // The compact map is always drawn (hud.showMap defaults true), so the MAP

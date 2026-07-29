@@ -261,6 +261,12 @@ export const EVENTS = Object.freeze({
   SHAKE_REQUESTED: 'fx:shake',
   SFX_REQUESTED: 'fx:sfx',
   MUSIC_REQUESTED: 'fx:music',
+  /**
+   * R-AUD-003: every audio-only cue has a caption. Emitted by the audio engine whenever a
+   * sound recipe declares `captionLoc`, and deliberately emitted even when nothing sounded —
+   * a player with audio off must get the same information regardless of the mix.
+   */
+  CAPTION_SHOWN: 'fx:caption',
 });
 
 export { PHASE_ORDER };

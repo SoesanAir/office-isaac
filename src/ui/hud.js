@@ -39,6 +39,9 @@ export class Hud {
     this.registry = registry;
     this.loc = loc || ((key) => key);
 
+    /** The current audio caption, if any (R-AUD-003). */
+    this.caption = null;
+    this.captionTimer = 0;
     /** Pending centre banners (GDD 17.2 "Center banner"). */
     this.bannerQueue = [];
     this.activeBanner = null;
@@ -50,6 +53,24 @@ export class Hud {
     // enough not to compete with combat.
     this.showMap = true;
     this.mapExpanded = false;
+  }
+
+  /**
+   * Show a caption for an audio cue (R-AUD-003).
+   *
+   * Deliberately NOT the centre banner. A caption is a running commentary on sound — several
+   * a second in a busy fight — so it sits low, small, and replaces itself rather than
+   * queueing. Routing it through the banner queue would bury the banners that matter and
+   * violate R-UIX-006 by parking text over live danger.
+   */
+  queueCaption(caption) {
+    if (!caption?.text) return;
+    // A higher-priority cue (a lower mix band) wins while the current one is still up, so a
+    // boss telegraph caption is never displaced by a footstep.
+    const incoming = caption.priority ?? 6;
+    if (this.caption && this.captionTimer > 0 && (this.caption.priority ?? 6) < incoming) return;
+    this.caption = { ...caption, priority: incoming };
+    this.captionTimer = 1.1;
   }
 
   /**
@@ -101,6 +122,7 @@ export class Hud {
     else if (waveObjective) this.#drawWaveBar(waveObjective);
     this.#drawBanner();
     if (this.showMap && run?.floor) this.#drawMap(run);
+    if (this.caption) this.#drawCaption();
   }
 
   // -------------------------------------------------------------------------
@@ -298,6 +320,26 @@ export class Hud {
         size: 12, align: 'center', color: '#c8c8d6', alpha,
       });
     }
+  }
+
+  /** Audio caption, low and unobtrusive (R-AUD-003, GDD 17.2). */
+  #drawCaption() {
+    const text = this.caption.text;
+    const alpha = Math.min(1, this.captionTimer / 0.25);
+    this.renderer.push(LAYER_ORDER.HUD, (c) => {
+      const prev = c.globalAlpha;
+      c.globalAlpha = prev * alpha;
+      c.font = '11px "Courier New", monospace';
+      c.textAlign = 'center';
+      c.textBaseline = 'bottom';
+      const width = Math.max(60, text.length * 6.6);
+      const y = LOGICAL_HEIGHT - PAD - 4;
+      c.fillStyle = 'rgba(8,8,14,0.7)';
+      c.fillRect((LOGICAL_WIDTH - width) / 2, y - 14, width, 16);
+      c.fillStyle = '#c8c8d6';
+      c.fillText(text, LOGICAL_WIDTH / 2, y);
+      c.globalAlpha = prev;
+    });
   }
 
   // -------------------------------------------------------------------------

@@ -156,6 +156,9 @@ export class InputSystem {
   /** Attach DOM listeners. Browser only. */
   attach(target = globalThis) {
     const onKeyDown = (e) => {
+      // Any key at all counts as the user gesture browsers require before audio may start,
+      // even one the game does not bind.
+      this.anyInputSeen = true;
       if (this.capturing) return;
       const action = this.keyboard[e.code];
       // Tab and Space would otherwise scroll or move focus out of the canvas.
@@ -310,6 +313,17 @@ export class InputSystem {
     }
 
     return s;
+  }
+
+  /**
+   * Has the player pressed anything yet?
+   *
+   * Browsers refuse to start an AudioContext outside a user gesture, and one created at page
+   * load begins suspended and stays that way. So the audio engine waits on this rather than
+   * unlocking at boot.
+   */
+  hadAnyInput() {
+    return Boolean(this.anyInputSeen);
   }
 
   /** Is the map currently requested, honouring hold vs toggle? */
