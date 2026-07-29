@@ -22,7 +22,7 @@
 
 import { defineHook, HOOK_TIMING } from '../effects.js';
 import { EVENTS } from '../../core/events.js';
-import { STATUS } from '../../core/constants.js';
+import { STATUS, DAMAGE_TAG } from '../../core/constants.js';
 
 /**
  * The permanent-stat pairs, SUP-001..008.
@@ -64,16 +64,19 @@ defineHook('SELF_DAMAGE_NON_LETHAL', {
   fn: (ctx, params) => {
     const player = ctx.player;
     if (!player) return;
-    const halfUnits = params?.halfUnits ?? 2;
+    const requested = params?.halfUnits ?? 2;
     // C.5: "if this would kill the player, reduce health to one half-unit instead."
     // A gamble that can end the run on a coin flip is a different, worse item, and the
     // floor at one half-unit is what keeps the Supplement system worth gambling on.
-    if (player.health.composure <= halfUnits) {
-      player.health.setComposure(1);
-      ctx.events?.emit(EVENTS.PLAYER_DAMAGED, { by: 'SUP-010', floored: true });
-      return;
-    }
-    ctx.damagePlayer?.({ halfUnits, tags: ['SELF'], sourceId: 'SUP-010' });
+    //
+    // clampNonLethal already means exactly this, so the reduction goes through the
+    // normal damage path rather than writing health directly. That matters: writing
+    // health would skip buffers, on-damaged hooks, and the damage event, and a
+    // Supplement that silently bypassed Caffeine would be a very confusing bug.
+    const safe = player.health.clampNonLethal(requested);
+    if (safe <= 0) return;
+    ctx.damagePlayer?.({ halfUnits: safe, tags: [DAMAGE_TAG.SELF], sourceId: 'SUP-010' });
+    if (safe < requested) ctx.events?.emit(EVENTS.PLAYER_DAMAGED, { by: 'SUP-010', floored: true });
   },
 });
 

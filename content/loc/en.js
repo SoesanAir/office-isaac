@@ -509,6 +509,187 @@ const strings = {
   'item.suggestion_box.collection': 'Come back to a pedestal you left and it will be offering something else. Once per floor. Never the same thing twice.',
 
   // -------------------------------------------------------------------------
+  // Active items (Appendix C).
+  //
+  // Two strings each. `.name` is the plain object or the key combination, because
+  // that is what the thing is. `.phrase` is the line shown on pickup, and it is
+  // scanned by the validator for digits and percent signs (GDD 17.3, R-ITM-005),
+  // so it never says how long, how much, or how often. These read as the short
+  // imperative someone would actually say while doing it.
+  // -------------------------------------------------------------------------
+  'active.task_manager.name': 'Task Manager',
+  'active.task_manager.phrase': 'End the process.',
+  'active.print_screen.name': 'Print Screen',
+  'active.print_screen.phrase': 'Freeze the frame.',
+  'active.ctrl_z.name': 'Ctrl+Z',
+  'active.ctrl_z.phrase': 'Undo the mistake.',
+  'active.out_of_office.name': 'Out of Office',
+  'active.out_of_office.phrase': 'Not available.',
+  'active.emergency_coffee_pot.name': 'Emergency Coffee Pot',
+  'active.emergency_coffee_pot.phrase': 'Fresh batch.',
+  'active.meeting_invite.name': 'Meeting Invite',
+  'active.meeting_invite.phrase': 'Everyone to the center.',
+  'active.power_cycle.name': 'Power Cycle',
+  'active.power_cycle.phrase': 'Turn it off and on.',
+  'active.shredder_bin.name': 'Shredder Bin',
+  'active.shredder_bin.phrase': 'Nothing goes to waste.',
+  'active.fire_extinguisher.name': 'Fire Extinguisher',
+  'active.fire_extinguisher.phrase': 'Clear a path.',
+  'active.red_phone.name': 'Red Phone',
+  'active.red_phone.phrase': 'Escalate immediately.',
+  'active.expense_report.name': 'Expense Report',
+  'active.expense_report.phrase': 'Convert the budget.',
+  'active.copier_jam.name': 'Copier Jam',
+  'active.copier_jam.phrase': 'Make a barrier.',
+  'active.floor_plan.name': 'Floor Plan',
+  'active.floor_plan.phrase': 'Know the layout.',
+  'active.performance_improvement_plan.name': 'Performance Improvement Plan',
+  'active.performance_improvement_plan.phrase': 'Under review.',
+  'active.desk_bell.name': 'Desk Bell',
+  'active.desk_bell.phrase': 'Next.',
+
+  // -------------------------------------------------------------------------
+  // Action Cards (Appendix C).
+  //
+  // Cards are fully identified the moment they are found (R-CON-002), so unlike a
+  // pickup phrase the description may say plainly what the card does. It still
+  // never states a magnitude or a duration — a card is a favour someone did for
+  // you, not a line in a spreadsheet.
+  // -------------------------------------------------------------------------
+  'card.meeting_canceled.name': 'Meeting Canceled',
+  'card.meeting_canceled.description': 'Returns you to the room the elevator left you in. Everything you were in the middle of stays exactly where it was.',
+  'card.company_wide_email.name': 'Company-Wide Email',
+  'card.company_wide_email.description': 'Sent to the whole room at once. Everything hostile in here takes it badly.',
+  'card.sick_day.name': 'Sick Day',
+  'card.sick_day.description': 'Refills every empty Composure in the containers you are carrying, then gives you a short stretch of grace. Nobody asks for a note.',
+  'card.approved_overtime.name': 'Approved Overtime',
+  'card.approved_overtime.description': 'You hit harder and faster until the room is finished. It was approved, which is the surprising part.',
+  'card.expense_approved.name': 'Expense Approved',
+  'card.expense_approved.description': 'Credits arrive all at once, with no explanation of which line they came out of.',
+  'card.budget_freeze.name': 'Budget Freeze',
+  'card.budget_freeze.description': 'Enemies slow down for the rest of the room, and so does everything they throw. The freeze lands on them, for once.',
+  'card.reorganization.name': 'Reorganization',
+  'card.reorganization.description': 'Rerolls whatever this room is still offering, drawn from the same places as before. The names change and the structure does not.',
+  'card.calendar_block.name': 'Calendar Block',
+  'card.calendar_block.description': 'Nothing can touch you for a short while. It does not open a door, so the block is worth exactly as much as the room you are standing in.',
+  'card.access_granted.name': 'Access Granted',
+  'card.access_granted.description': 'Opens the standard locks on the doors touching this room. Anything sealed for a better reason stays sealed.',
+  'card.all_hands.name': 'All Hands',
+  'card.all_hands.description': 'For a moment the ordinary staff decide the problem is each other. Management only slows down and watches.',
+  'card.performance_review.name': 'Performance Review',
+  'card.performance_review.description': 'Marks the manager room and every optional fight on this floor. Knowing where the review is does not make it shorter.',
+  'card.remote_day.name': 'Remote Day',
+  'card.remote_day.description': 'You spend the room above the floor, clear of spills, cables and furniture. It ends when the room does.',
+  'card.hard_deadline.name': 'Hard Deadline',
+  'card.hard_deadline.description': 'Lights up the shortest way to the manager and keeps you quick until you arrive. It has no opinion about what is on the route.',
+  'card.return_to_sender.name': 'Return to Sender',
+  'card.return_to_sender.description': 'For a few seconds everything fired at you turns around and goes home. Good aim becomes a problem for whoever had it.',
+  'card.escalation.name': 'Escalation',
+  'card.escalation.description': 'Calls in a fight nobody asked for, and pays properly if you win it. It will not work in a room that is already an escalation.',
+  'card.meeting_minutes.name': 'Meeting Minutes',
+  'card.meeting_minutes.description': 'Repeats whichever card you played last. It cannot repeat itself, which is the one thing minutes are usually for.',
+  'card.desk_move.name': 'Desk Move',
+  'card.desk_move.description': 'Relocates you to an ordinary room you have already cleared. You do not get to say which one.',
+  'card.quarter_end.name': 'Quarter-End',
+  'card.quarter_end.description': 'The room becomes a timed run of waves with something good waiting at the end. There is no version of this where you get an extension.',
+
+  // -------------------------------------------------------------------------
+  // Supplements (Appendix C).
+  //
+  // Unidentified until taken, so `.identified` is the line that appears the instant
+  // the body works out what it was. Short and sensory on purpose: this is a
+  // sensation, not a readout, and the validator scans these keys too.
+  // -------------------------------------------------------------------------
+  'supplement.focus_up.name': 'Focus Up',
+  'supplement.focus_up.identified': 'Typing faster',
+  'supplement.focus_down.name': 'Focus Down',
+  'supplement.focus_down.identified': 'Slower hands',
+  'supplement.energy_up.name': 'Energy Up',
+  'supplement.energy_up.identified': 'More energy',
+  'supplement.energy_crash.name': 'Energy Crash',
+  'supplement.energy_crash.identified': 'Sudden crash',
+  'supplement.heavy_dose.name': 'Heavy Dose',
+  'supplement.heavy_dose.identified': 'Hits harder',
+  'supplement.numb_hands.name': 'Numb Hands',
+  'supplement.numb_hands.identified': 'Weak grip',
+  'supplement.clear_eyes.name': 'Clear Eyes',
+  'supplement.clear_eyes.identified': 'Can see farther',
+  'supplement.dry_eyes.name': 'Dry Eyes',
+  'supplement.dry_eyes.identified': 'Everything feels closer',
+  'supplement.full_recovery.name': 'Full Recovery',
+  'supplement.full_recovery.identified': 'Feeling normal',
+  'supplement.bad_reaction.name': 'Bad Reaction',
+  'supplement.bad_reaction.identified': 'Bad reaction',
+  'supplement.telework.name': 'Telework',
+  'supplement.telework.identified': 'Working elsewhere',
+  'supplement.adrenaline.name': 'Adrenaline',
+  'supplement.adrenaline.identified': 'Too much energy',
+  'supplement.placebo.name': 'Placebo',
+  'supplement.placebo.identified': 'Seems familiar',
+  'supplement.mystery_snack.name': 'Mystery Snack',
+  'supplement.mystery_snack.identified': 'Questionable choice',
+
+  // -------------------------------------------------------------------------
+  // Desk Charms (Appendix C).
+  //
+  // Charms are deliberately small and unreliable (GDD 9.8), and the copy says so
+  // rather than overselling them. One sentence each, and every sentence that
+  // describes a chance admits it is a chance.
+  // -------------------------------------------------------------------------
+  'charm.coffee_sleeve.name': 'Coffee Sleeve',
+  'charm.coffee_sleeve.description': 'Sometimes a caffeine pickup goes a little further, and sometimes the sleeve is just cardboard.',
+  'charm.bent_keycard.name': 'Bent Keycard',
+  'charm.bent_keycard.description': 'Now and then the reader forgets to keep an Access Card it has already accepted.',
+  'charm.usb_cap.name': 'USB Cap',
+  'charm.usb_cap.description': 'A battery picked up at full charge gets put away instead of thrown out.',
+  'charm.red_pushpin.name': 'Red Pushpin',
+  'charm.red_pushpin.description': 'Anything you have marked takes a little more. Small, and it adds up over a long fight.',
+  'charm.tiny_plant.name': 'Tiny Plant',
+  'charm.tiny_plant.description': 'The first bit of recovery you find on a floor goes a little further than it should.',
+  'charm.meeting_token.name': 'Meeting Token',
+  'charm.meeting_token.description': 'Optional fights turn up more often and pay better, if you consider that an upside.',
+  'charm.rubber_foot.name': 'Rubber Foot',
+  'charm.rubber_foot.description': 'Spills and conveyor belts have less say in where you end up.',
+  'charm.cracked_screen_protector.name': 'Cracked Screen Protector',
+  'charm.cracked_screen_protector.description': 'Takes the edge off one shot in a manager room, then does nothing at all until the next floor.',
+  'charm.frayed_cable.name': 'Frayed Cable',
+  'charm.frayed_cable.description': 'Electrical chains reach further and land weaker, which is exactly what a frayed cable does everywhere else.',
+  'charm.spare_button.name': 'Spare Button',
+  'charm.spare_button.description': 'Very occasionally an extra shot leaves your hand for no reason you could explain.',
+  'charm.mini_calendar.name': 'Mini Calendar',
+  'charm.mini_calendar.description': 'Challenge doors appear on the map, but only after you have found the supply closet.',
+  'charm.nameplate.name': 'Nameplate',
+  'charm.nameplate.description': 'A price is sometimes lower the first time you look at it, and never lower the second.',
+  'charm.transit_pass.name': 'Transit Pass',
+  'charm.transit_pass.description': 'You come off the elevator already moving, which saves less time than it feels like.',
+  'charm.employee_of_the_month_pin.name': 'Employee of the Month Pin',
+  'charm.employee_of_the_month_pin.description': 'Beating a manager without being touched pays a little extra, and nobody puts your photo up.',
+  'charm.paper_star.name': 'Paper Star',
+  'charm.paper_star.description': 'The better clear rewards are slightly less rare, in a way you would need a long afternoon to prove.',
+  'charm.old_password.name': 'Old Password',
+  'charm.old_password.description': 'A blast near a secret wall does not have to be well placed, and nothing here tells you where the walls are.',
+  'charm.snack_wrapper.name': 'Snack Wrapper',
+  'charm.snack_wrapper.description': 'Vending machines put up with slightly more from you before they give up.',
+  'charm.lucky_lanyard.name': 'Lucky Lanyard',
+  'charm.lucky_lanyard.description': 'A floor that keeps refusing to hand over an Access Card eventually runs out of ways to refuse.',
+
+  // -------------------------------------------------------------------------
+  // Transformations (Appendix C).
+  //
+  // These fire once, rarely, after a set has quietly assembled itself, so the copy
+  // is allowed to sound like an occasion. Two sentences: what happened, then what
+  // you are now carrying or trailing behind you.
+  // -------------------------------------------------------------------------
+  'transformation.latte.name': 'Latte',
+  'transformation.latte.description': 'The espresso and the milk finally meet in the same cup. Both effects stay, your hands settle, you move a little quicker, and there is foam on top.',
+  'transformation.power_user.name': 'Power User',
+  'transformation.power_user.description': 'Enough of the hardware has been replaced that the machine stops arguing with you. Everything you have modified works a little harder, and loose key glyphs drift around you where people can see them.',
+  'transformation.paper_trail.name': 'Paper Trail',
+  'transformation.paper_trail.description': 'You have accumulated a paper trail, and a paper trail does not tidy itself away. Attacks that break apart leave scraps behind, and the scraps hurt whatever walks through them.',
+  'transformation.middle_management.name': 'Middle Management',
+  'transformation.middle_management.description': 'Somewhere in all the paperwork you acquired a direct report. A small assistant trails after you, picks up what you drop, and becomes briefly and visibly thrilled every time a manager goes down.',
+
+  // -------------------------------------------------------------------------
   // Enemies (Appendix D). Names are job titles, because that is the joke.
   // -------------------------------------------------------------------------
   'enemy.office_drone.name': 'Office Drone',

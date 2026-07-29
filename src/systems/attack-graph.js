@@ -207,6 +207,14 @@ export class AttackGraphResolver {
       player.profileId ?? '',
       // Statuses that alter the attack, sorted so order cannot matter.
       [...player.status.active.keys()].sort().join(','),
+      // Consumable stat changes. These MUST be in the signature: a Supplement is a
+      // permanent change to a build the cache is keyed on, and a room-long Approved
+      // Overtime would otherwise be served a plan resolved before it was used.
+      // Sorted for permanents (a Map preserves insertion order, which is not
+      // meaningful) and counted for temporaries.
+      [...(player.permanentStats?.entries?.() ?? [])]
+        .map(([k, v]) => `${k}:${v}`).sort().join(','),
+      (player.temporaryStats || []).map((e) => `${e.key}:${e.value}`).sort().join(','),
     ].join('|');
   }
 
@@ -266,6 +274,20 @@ export class AttackGraphResolver {
           plan.armorPierceFraction = 1 - (1 - plan.armorPierceFraction) * (1 - s.armorPierceFraction);
         }
       }
+    }
+
+    // Consumable contributions land after every owned item and before the clamps, so a
+    // Supplement adds to the build the player assembled rather than replacing part of
+    // it, and a runaway stack still resolves inside CLAMPS (R-PLY-003).
+    const extra = player.applyExtraStats ? player.applyExtraStats({}) : null;
+    if (extra) {
+      if (extra.damageAdd) damage.addFlat(extra.damageAdd);
+      if (extra.damageMul) damage.multiply(extra.damageMul);
+      if (extra.intervalMul) interval.multiply(extra.intervalMul);
+      if (extra.projectileSpeedMul) speed.multiply(extra.projectileSpeedMul);
+      if (extra.sizeMul) size.multiply(extra.sizeMul);
+      if (extra.rangeMul) range.multiply(extra.rangeMul);
+      if (extra.knockbackMul) knockback.multiply(extra.knockbackMul);
     }
 
     plan.damage = damage.resolve(CLAMPS.damage) * weapon.attack.baseDamageMultiplier;

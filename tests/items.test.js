@@ -438,3 +438,91 @@ test('GDD H.2: every item records an originality note', () => {
     );
   }
 });
+
+// ---------------------------------------------------------------------------
+// Consumable stat plumbing (GDD C.3, C.5)
+//
+// These four tests exist because of a bug found while writing them: permanent
+// Supplement deltas and temporary card multipliers both land on keys ending in `Mul`,
+// but Appendix C.5 states a permanent as "+0.06" while Appendix C.4 states a temporary
+// as the multiplier 1.35 itself. Treating a permanent as a multiplier cut damage to six
+// percent of base. The convention is now explicit, so it needs to stay tested.
+// ---------------------------------------------------------------------------
+
+async function livePlayer() {
+  const { Player } = await import('../src/entities/player.js');
+  const p = new Player({ profile: registry.get('profile', 'PRF-001') });
+  p.equipWeapon('WPN-001');
+  return p;
+}
+
+test('C.5: a permanent Mul Supplement is a delta, not a multiplier', async () => {
+  const resolver = new AttackGraphResolver({ registry });
+  const player = await livePlayer();
+  const before = resolver.resolve(player).damage;
+
+  // SUP-005 Heavy Dose: "permanently improve damage slightly."
+  player.addPermanentStat('damageMul', 0.06);
+  const after = resolver.resolve(player).damage;
+
+  assert.ok(after > before, `damage went from ${before} to ${after}`);
+  assert.ok(after < before * 1.2, `a "slight" improvement multiplied damage by ${after / before}`);
+});
+
+test('C.5: an up/down Supplement pair returns you exactly to where you started', async () => {
+  const resolver = new AttackGraphResolver({ registry });
+  const player = await livePlayer();
+  const base = resolver.resolve(player).damage;
+
+  player.addPermanentStat('damageMul', 0.06);  // SUP-005 Heavy Dose
+  player.addPermanentStat('damageMul', -0.06); // SUP-006 Numb Hands
+  assert.equal(resolver.resolve(player).damage, base);
+
+  const baseInterval = resolver.resolve(player).interval;
+  player.addPermanentStat('intervalMul', -0.05); // SUP-001 Focus Up
+  player.addPermanentStat('intervalMul', 0.05);  // SUP-002 Focus Down
+  assert.equal(resolver.resolve(player).interval, baseInterval);
+});
+
+test('C.4: a temporary Mul from a card IS the multiplier', async () => {
+  const resolver = new AttackGraphResolver({ registry });
+  const player = await livePlayer();
+  const before = resolver.resolve(player).damage;
+
+  // CARD-004 Approved Overtime declares damageMul 1.35 directly.
+  player.addTemporaryStat('damageMul', 1.35, null, { roomScoped: true, sourceId: 'CARD-004' });
+  const after = resolver.resolve(player).damage;
+
+  assert.ok(Math.abs(after / before - 1.35) < 1e-9, `expected 1.35x, got ${after / before}x`);
+});
+
+test('a room-scoped buff ends at the room boundary, and its end handler fires', async () => {
+  const resolver = new AttackGraphResolver({ registry });
+  const player = await livePlayer();
+  const base = resolver.resolve(player).damage;
+
+  let crashed = false;
+  // SUP-012 Adrenaline queues its crash on effect end rather than on a timer, so a
+  // fast player cannot dodge the downside by clearing the room quickly.
+  player.addTemporaryStat('damageMul', 1.5, null, { roomScoped: true, sourceId: 'SUP-012' });
+  player.queueOnEffectEnd('SUP-012', () => { crashed = true; });
+
+  assert.ok(resolver.resolve(player).damage > base, 'the buff never applied');
+  player.beginRoom();
+  assert.equal(resolver.resolve(player).damage, base, 'the buff outlived its room');
+  assert.equal(crashed, true, 'the crash handler never fired');
+});
+
+test('ITM-037 Mini Fridge releases its stored heal at the next floor start', async () => {
+  const player = await livePlayer();
+  player.health.consume(2);
+  const before = player.health.composure;
+
+  // The hook writes to runFlags rather than floorFlags precisely so beginFloor does not
+  // clear it before beginFloor can read it.
+  player.runFlags.set('fridgeStored', 1);
+  player.beginFloor();
+
+  assert.equal(player.health.composure, before + 1, 'the stored heal was lost');
+  assert.equal(player.runFlags.get('fridgeStored'), 0, 'the fridge kept the heal too');
+});

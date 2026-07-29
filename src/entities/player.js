@@ -105,6 +105,31 @@ export class Player {
     /** Per-floor and per-room bookkeeping used by many items. */
     this.floorFlags = new Map();
     this.roomFlags = new Map();
+    /**
+     * Run-scoped flags. Separate from floorFlags because a handful of items
+     * deliberately outlive a floor — ITM-037 Mini Fridge stores a heal *for* the next
+     * floor, so clearing it on the elevator would delete the whole item.
+     */
+    this.runFlags = new Map();
+
+    /**
+     * Stat changes that did not come from an item the player is holding.
+     *
+     * `permanentStats` is SUP-001..008 and ACT-008 Shredder Bin: additive deltas that
+     * last the run and survive a weapon swap. `temporaryStats` is the room-scoped and
+     * timed buffs from actives, cards, and Supplements. Both are kept out of `stats`
+     * because the attack graph rebuilds `stats` from the build on every change and
+     * would otherwise wipe them (R-WPN-006).
+     */
+    this.permanentStats = new Map();
+    this.temporaryStats = [];
+    /** Callbacks to fire when a named temporary effect ends (SUP-012 Adrenaline). */
+    this.effectEndHandlers = new Map();
+
+    /** ITM-029 Lucky Paperclip. Each entry blocks one hostile projectile. */
+    this.orbitals = [];
+    /** ITM-045, ITM-056, TRN-004. Shooters and collectors that follow the player. */
+    this.familiars = [];
 
     this.profileId = profile?.id ?? null;
     if (profile) this.applyProfile(profile);
@@ -181,6 +206,83 @@ export class Player {
 
   turnRate() {
     return this.stats.turnFriction ?? 22;
+  }
+
+  // -------------------------------------------------------------------------
+  // Stat changes from consumables (GDD C.3, C.5)
+  // -------------------------------------------------------------------------
+
+  /**
+   * A permanent additive stat delta. SUP-001..008 and ACT-008 Shredder Bin.
+   *
+   * Additive rather than multiplicative even for `damageMul`-style keys, because C.5
+   * pairs each positive with an equal negative and only addition makes "Focus Up then
+   * Focus Down" return you exactly to where you started.
+   *
+   * @param {string} key stat name matching a passive `stats` field
+   * @param {number} magnitude signed delta
+   */
+  addPermanentStat(key, magnitude) {
+    if (!Number.isFinite(magnitude)) return;
+    this.permanentStats.set(key, (this.permanentStats.get(key) ?? 0) + magnitude);
+  }
+
+  /**
+   * A temporary stat override.
+   *
+   * @param {string} key stat name
+   * @param {number} value multiplier or addend, per the key's own convention
+   * @param {number|null} seconds lifetime, or null when `roomScoped` carries it
+   * @param {{roomScoped?:boolean, sourceId?:string}} [opts]
+   */
+  addTemporaryStat(key, value, seconds = null, opts = {}) {
+    this.temporaryStats.push({
+      key,
+      value,
+      seconds: seconds ?? Infinity,
+      roomScoped: Boolean(opts.roomScoped),
+      sourceId: opts.sourceId ?? null,
+    });
+  }
+
+  /** Register a callback for when `sourceId`'s temporaries end (SUP-012's crash). */
+  queueOnEffectEnd(sourceId, fn) {
+    const list = this.effectEndHandlers.get(sourceId) || [];
+    list.push(fn);
+    this.effectEndHandlers.set(sourceId, list);
+  }
+
+  /** Fire and clear any end handlers for a source that no longer has temporaries. */
+  #settleEffectEnd(sourceId) {
+    const handlers = this.effectEndHandlers.get(sourceId);
+    if (!handlers) return;
+    this.effectEndHandlers.delete(sourceId);
+    for (const fn of handlers) fn();
+  }
+
+  /**
+   * Fold permanent and temporary contributions into a resolved stat block.
+   *
+   * The attack graph calls this after it has applied the build, so ordering is:
+   * base -> items -> permanents -> temporaries. Permanents come before temporaries so
+   * a room-long multiplier scales the run's accumulated total rather than the base.
+   */
+  applyExtraStats(stats) {
+    // The two sources use different conventions for a `Mul` key and conflating them is
+    // a real bug, not a nicety: a permanent Heavy Dose is stated as "+0.06" in
+    // Appendix C.5, while Approved Overtime is stated as the multiplier 1.35 itself.
+    // Treating the first as a multiplier would cut damage to six percent.
+    //
+    // So: permanents are DELTAS around the identity, temporaries are the value.
+    for (const [key, delta] of this.permanentStats) {
+      if (key.endsWith('Mul')) stats[key] = (stats[key] ?? 1) + delta;
+      else stats[key] = (stats[key] ?? 0) + delta;
+    }
+    for (const entry of this.temporaryStats) {
+      if (entry.key.endsWith('Mul')) stats[entry.key] = (stats[entry.key] ?? 1) * entry.value;
+      else stats[entry.key] = (stats[entry.key] ?? 0) + entry.value;
+    }
+    return stats;
   }
 
   // -------------------------------------------------------------------------
@@ -336,14 +438,54 @@ export class Player {
   beginFloor() {
     this.floorFlags.clear();
     this.attackCounter = 0; // ITM-018: counter resets on floor transition
+    // ITM-037 Mini Fridge and CHR-003 USB Cap release what they stored for this moment.
+    const stored = this.runFlags.get('fridgeStored') ?? 0;
+    if (stored > 0) {
+      this.health.healComposure(stored);
+      this.runFlags.set('fridgeStored', 0);
+    }
   }
 
   beginRoom() {
     this.roomFlags.clear();
+    this.#expireTemporaries((entry) => entry.roomScoped);
+    // Room-scoped flight ends with the room that granted it (CARD-012).
+    if (this.flyingRoomScoped) { this.flying = false; this.flyingRoomScoped = false; }
+    this.phaseThroughNormals = false;
+  }
+
+  /**
+   * Drop temporary stats matching `predicate` and fire any end handlers whose source
+   * no longer has a live entry. Shared by the room boundary and the timed path so the
+   * two cannot disagree about when an effect is over.
+   */
+  #expireTemporaries(predicate) {
+    const dropped = new Set();
+    this.temporaryStats = this.temporaryStats.filter((entry) => {
+      if (!predicate(entry)) return true;
+      if (entry.sourceId) dropped.add(entry.sourceId);
+      return false;
+    });
+    for (const sourceId of dropped) {
+      if (this.temporaryStats.some((e) => e.sourceId === sourceId)) continue;
+      this.#settleEffectEnd(sourceId);
+    }
   }
 
   tick(dt) {
     this.invulnerability.tick(dt);
+    if (this.invulnerableSeconds > 0) this.invulnerableSeconds -= dt;
+    if (this.reflectSeconds > 0) this.reflectSeconds -= dt;
+    if (this.approachBonusSeconds > 0) {
+      this.approachBonusSeconds -= dt;
+      if (this.approachBonusSeconds <= 0) this.approachDamageBonus = 0;
+    }
+    if (this.temporaryStats.length) {
+      for (const entry of this.temporaryStats) {
+        if (Number.isFinite(entry.seconds)) entry.seconds -= dt;
+      }
+      this.#expireTemporaries((entry) => entry.seconds <= 0);
+    }
     if (this.shield && this.shield.charges < this.shield.maxCharges) {
       this.shield.rechargeTimer -= dt;
       if (this.shield.rechargeTimer <= 0) {
