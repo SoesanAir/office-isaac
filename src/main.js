@@ -25,6 +25,7 @@ import { EncounterRuntime } from './systems/encounter-runtime.js';
 import { AttackGraphResolver } from './systems/attack-graph.js';
 import { PlayerAttackSystem } from './systems/player-attack.js';
 import { runEffects } from './systems/effects.js';
+import { LootService, applyPickup, PICKUP, POOL_FOR_ROLE } from './systems/loot.js';
 import { Hud } from './ui/hud.js';
 import { loadContent } from '../content/index.js';
 import './register-all.js';
@@ -73,6 +74,9 @@ class Game {
     });
     this.runtime.combat = this.combat;
 
+    this.loot = new LootService({
+      registry: this.registry, events: this.events, getRun: () => this.run,
+    });
     this.attackGraph = new AttackGraphResolver({ registry: this.registry });
     this.playerAttack = new PlayerAttackSystem({
       registry: this.registry,
@@ -86,7 +90,7 @@ class Game {
       rng: null,
       registry: this.registry,
       spawner: this.runtime,
-      rewards: this.#rewardsStub(),
+      rewards: this.loot,
     });
 
     this.#installSystems();
@@ -112,6 +116,7 @@ class Game {
         if (!this.frameInput?.firing) this.playerAttack.releaseCharge(this.frameInput);
       })
       .register(PHASE.PHYSICS, 'projectileSteering', (dt) => this.playerAttack.steerProjectiles(dt))
+      .register(PHASE.PHYSICS, 'pickups', () => this.#collectPickups())
       .register(PHASE.PHYSICS, 'doorTraversal', (dt) => this.#checkDoors(dt))
       .register(PHASE.ROOM_CLEAR, 'roomLifecycle', (dt) => {
         this.roomController.tick(dt, { hostiles: this.runtime.hostiles, player: this.run.player });
@@ -157,10 +162,39 @@ class Game {
       this.camera.setRoom(room.rect, this.run.player);
     }, { priority: LISTENER_PRIORITY.PRESENTATION });
 
+    // A rolled clear reward becomes a real pickup on the floor. MECHANIC priority,
+    // because the pickup is a mechanic and the banner below is not.
+    this.events.on(EVENTS.ROOM_REWARD_ROLLED, (e) => {
+      const room = e.room || this.run.room;
+      if (!room || !e.reward) return;
+      const anchor = room.rewardAnchor ?? room.centre;
+      room.pickups.push({
+        id: `${room.nodeId}-clear${room.pickups.length}`,
+        kind: e.reward.kind,
+        count: e.reward.count ?? 1,
+        x: anchor.x,
+        y: anchor.y,
+        collected: false,
+      });
+    }, { priority: LISTENER_PRIORITY.MECHANIC });
+
     this.events.on(EVENTS.ROOM_CLEARED, () => {
       this.camera.shake(0.12, 0.14);
       this.hud.queueBanner({ title: 'Room clear', seconds: 1.1, priority: 20 });
     }, { priority: LISTENER_PRIORITY.PRESENTATION });
+
+    // Pedestal rooms place their item on first entry (GDD 12.5's reward table).
+    this.events.on(EVENTS.ROOM_ENTERED, () => {
+      const room = this.run.room;
+      if (!room || room.pedestal || room.state.rewardSpawned) return;
+      const pool = POOL_FOR_ROLE[room.role];
+      if (!pool) return;
+      room.state.rewardSpawned = true;
+      const placed = this.loot.placePedestal({ room, depth: this.run.floorDef.depth, poolId: pool });
+      // A pool with nothing eligible left is a real outcome, not an error: the room
+      // simply has an empty pedestal, and GDD 8.4 step 2 is what emptied it.
+      if (placed) this.loot.markSeen(placed.id);
+    }, { priority: LISTENER_PRIORITY.MECHANIC });
 
     this.events.on(EVENTS.PLAYER_DAMAGED, () => {
       this.fx.hitFlash = 0.14;
@@ -201,18 +235,86 @@ class Game {
   }
 
   /**
-   * Minimal reward service.
+   * Collect pickups and pedestal items the player is standing on.
    *
-   * The full loot service is Phase 4. This deliberately grants nothing rather than
-   * guessing: R-AI-004 says a placeholder must not masquerade as a finished mechanic,
-   * and a room that quietly drops the wrong thing is worse than one that drops
-   * nothing while the pools are still being authored.
+   * GDD R-LOOP-003: no standard pedestal item is forced by contact with the room's
+   * entrance or exit path — so a pedestal needs the player to walk *onto* it, and its
+   * radius is deliberately tighter than a loose pickup's.
    */
-  #rewardsStub() {
-    return {
-      rollClearReward: () => null,
-      placePedestal: () => null,
-    };
+  #collectPickups() {
+    const room = this.run.room;
+    const player = this.run.player;
+    if (!room || !player || player.health.isDead) return;
+
+    for (const pickup of room.pickups) {
+      if (pickup.collected) continue;
+      if (Math.hypot(player.x - pickup.x, player.y - pickup.y) > player.radius + 0.5) continue;
+      // A health pickup the player cannot use is left on the floor rather than
+      // consumed, because GDD 9.2 refills "up to current capacity" — silently eating
+      // it at full health would feel like theft.
+      if (!applyPickup(player, pickup.kind, pickup.count ?? 1)) continue;
+      pickup.collected = true;
+      room.state.collectedPickupIds.add(pickup.id);
+      this.events.emit(EVENTS.PICKUP_COLLECTED, { kind: pickup.kind, count: pickup.count ?? 1 });
+      this.events.emit(EVENTS.SFX_REQUESTED, { sound: PICKUP_SFX[pickup.kind] ?? 'SFX-PICKUP_GENERIC' });
+    }
+
+    const pedestal = room.pedestal;
+    if (!pedestal || pedestal.taken) return;
+    const near = Math.hypot(player.x - pedestal.x, player.y - pedestal.y) < player.radius + 0.35;
+    if (!near) {
+      // Stepping off re-arms the pedestal. R-WPN-002 makes a weapon swap reversible,
+      // which means the pedestal stays active after a swap — so without this latch the
+      // player would swap back and forth every single tick while standing on it.
+      pedestal.armed = true;
+      return;
+    }
+    if (pedestal.armed === false) return;
+    pedestal.armed = false;
+    this.#takePedestal(room, pedestal);
+  }
+
+  /** Equip or absorb a pedestal item. GDD 8.1's slot rules decide which. */
+  #takePedestal(room, pedestal) {
+    const player = this.run.player;
+    const def = this.registry.get(pedestal.kind, pedestal.id);
+    if (!def) return;
+
+    if (pedestal.kind === 'weapon') {
+      // R-WPN-002: the previous weapon stays on the pedestal, so the swap is
+      // reversible until the player leaves.
+      const previous = player.weaponId;
+      player.equipWeapon(pedestal.id);
+      this.attackGraph.invalidate();
+      pedestal.id = previous;
+      pedestal.kind = 'weapon';
+      this.events.emit(EVENTS.WEAPON_EQUIPPED, { weaponId: def.id, previous });
+    } else if (pedestal.kind === 'active') {
+      const previous = player.activeId;
+      player.equipActive(pedestal.id);
+      pedestal.id = previous;
+      if (!previous) pedestal.taken = true;
+    } else if (pedestal.kind === 'charm') {
+      const previous = player.charmId;
+      player.equipCharm(pedestal.id);
+      pedestal.id = previous;
+      if (!previous) pedestal.taken = true;
+    } else {
+      player.addPassive(pedestal.id);
+      this.attackGraph.invalidate();
+      pedestal.taken = true;
+    }
+
+    this.loot.markCollected(def.id);
+    this.events.emit(EVENTS.ITEM_COLLECTED, { contentId: def.id, kind: pedestal.kind });
+    this.events.emit(EVENTS.SFX_REQUESTED, { sound: 'SFX-ITEM_COLLECT' });
+    // GDD 17.2 / 17.3: the banner shows a name and a short qualitative phrase, never
+    // a stat delta.
+    this.hud.queueBanner({
+      title: this.loc(def.nameLoc),
+      subtitle: def.pickupPhraseLoc ? this.loc(def.pickupPhraseLoc) : undefined,
+      priority: 30,
+    });
   }
 
   start() {
@@ -322,6 +424,7 @@ class Game {
       this.#renderHazards(room);
       this.#renderDoors(room);
       r.drawDebugZones(room.template, room.rect);
+      this.#renderPickups(room);
       this.#renderEnemies();
       this.#renderPlayer(player);
       // Projectiles draw above every entity so a hostile shot can never be hidden
@@ -413,6 +516,40 @@ class Game {
           '#ffe9a8', { layer: LAYER_ORDER.FLOOR_DECAL, fill: false, width: 1, alpha: 0.9 },
         );
       }
+    }
+  }
+
+  #renderPickups(room) {
+    for (const pickup of room.pickups) {
+      if (pickup.collected) continue;
+      this.renderer.drawSprite(PICKUP_SPRITE[pickup.kind] ?? 'pickup_credit', pickup.x, pickup.y, {
+        outline: 'PICKUP', layer: LAYER_ORDER.PICKUP,
+      });
+      // Multi-credit drops show a count, because credits are one of the "obvious
+      // counters" GDD D-013 allows to be numeric.
+      if ((pickup.count ?? 1) > 1) {
+        this.renderer.drawWorldLabel(`x${pickup.count}`, pickup.x, pickup.y - 0.9, { size: 9 });
+      }
+    }
+
+    const pedestal = room.pedestal;
+    if (!pedestal || pedestal.taken || !pedestal.id) return;
+    const def = this.registry.get(pedestal.kind, pedestal.id);
+    // GDD 8.2: the pedestal sprite and item silhouette are visible BEFORE pickup, so
+    // the player can decide whether to walk over at all (R-LOOP-003).
+    this.renderer.drawSprite('pedestal_base', pedestal.x, pedestal.y + 0.35, {
+      layer: LAYER_ORDER.LOW_OBJECT,
+    });
+    if (def?.spriteId) {
+      // Bob the item so a pedestal reads as an offer rather than as furniture.
+      const bob = Math.sin(this.fx.walkPhase * 1.5 + pedestal.x) * 0.08;
+      this.renderer.drawSprite(def.spriteId, pedestal.x, pedestal.y - 0.55 + bob, {
+        outline: def.liability ? 'HOSTILE' : 'PICKUP',
+        layer: LAYER_ORDER.PICKUP,
+      });
+    }
+    if (Math.hypot(this.run.player.x - pedestal.x, this.run.player.y - pedestal.y) < 2.5 && def) {
+      this.renderer.drawWorldLabel(this.loc(def.nameLoc), pedestal.x, pedestal.y - 1.6, { size: 10 });
     }
   }
 
@@ -573,6 +710,31 @@ class Game {
     });
   }
 }
+
+/** Pickup sprite and sound per kind, keyed off the loot service's PICKUP enum. */
+const PICKUP_SPRITE = Object.freeze({
+  CREDIT: 'pickup_credit',
+  ACCESS_CARD: 'pickup_access_card',
+  TONER_CHARGE: 'pickup_toner_charge',
+  BATTERY: 'pickup_battery',
+  COMPOSURE: 'pickup_composure',
+  CAFFEINE: 'pickup_caffeine',
+  SPITE: 'pickup_spite',
+  GOLDEN_CUSHION: 'pickup_golden_cushion',
+  SUPPLEMENT: 'pickup_supplement',
+});
+
+const PICKUP_SFX = Object.freeze({
+  CREDIT: 'SFX-PICKUP_CREDIT',
+  COMPOSURE: 'SFX-PICKUP_HEALTH',
+  CAFFEINE: 'SFX-PICKUP_HEALTH',
+  SPITE: 'SFX-PICKUP_HEALTH',
+  ACCESS_CARD: 'SFX-PICKUP_GENERIC',
+  TONER_CHARGE: 'SFX-PICKUP_GENERIC',
+  BATTERY: 'SFX-PICKUP_GENERIC',
+  GOLDEN_CUSHION: 'SFX-PICKUP_GENERIC',
+  SUPPLEMENT: 'SFX-PICKUP_GENERIC',
+});
 
 const PLAYER_SPRITE_BY_FACING = Object.freeze({
   NORTH: 'player_idle_north',
