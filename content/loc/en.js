@@ -841,6 +841,27 @@ const strings = {
   'caption.telegraph_light': '[quick wind-up]',
   'caption.telegraph_support': '[support acting]',
 
+
+  // -------------------------------------------------------------------------
+  // Challenges (GDD 16.8).
+  //
+  // Each description states its rule in plain words, because 16.8 forbids hidden
+  // arbitrary failure conditions — if the player can lose to a rule, the rule has to be
+  // readable before they start. No description states a total (D-016).
+  // -------------------------------------------------------------------------
+  'challenge.standard_issue.name': 'Standard Issue',
+  'challenge.standard_issue.description': 'The keyboard you were given, all the way up. No supply closet, no shop, nothing you did not start with.',
+  'challenge.performance_review.name': 'Performance Review',
+  'challenge.performance_review.description': 'You are carrying Burnout and it is not optional. Less to lose, and a great deal more behind every hit.',
+  'challenge.locked_orientation.name': 'Locked Orientation',
+  'challenge.locked_orientation.description': 'You can only fire left and right. Where you stand is the whole of your aim, so you are given a better chair.',
+  'challenge.below_code.name': 'Below Code',
+  'challenge.below_code.description': 'Straight into Facilities, with three charges and no money. Everything down there that can hurt you can also be pointed at something else.',
+  'challenge.expense_audit.name': 'Expense Audit',
+  'challenge.expense_audit.description': 'You start with money and you are not allowed to keep it. Sixty credits at a lift and the audit closes your run.',
+  'challenge.beneficial_owner.name': 'Beneficial Owner',
+  'challenge.beneficial_owner.description': 'The whole way to the top, on the keyboard, with no shop. Nothing here is new to you; that is the test.',
+
   'clue.whiteboard.generic': 'Someone has drawn a load-bearing wall in the wrong place.',
 };
 

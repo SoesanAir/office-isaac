@@ -1227,7 +1227,10 @@ export const challengeSchema = new Schema('challenge', {
   invariants: [
     (def, issues, label) => {
       for (const cond of def.rules?.failureConditions || []) {
-        if (!/death|timer|damage|route|resource/i.test(cond)) {
+        // The named resources count as resource conditions. Without them a perfectly
+        // legible rule like "holding more than sixty credits" warns as arbitrary, which
+        // trains authors to ignore the warning — the opposite of what GDD 16.8 wants.
+        if (!/death|timer|damage|route|resource|credit|access card|toner|composure/i.test(cond)) {
           issues.warn(`${label}.rules.failureConditions`, `"${cond}" may be an arbitrary hidden condition (GDD 16.8)`);
         }
       }

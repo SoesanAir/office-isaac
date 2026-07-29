@@ -21,6 +21,8 @@ import { Run, RUN_STATE, doorCost } from './systems/run.js';
 import { moveWithCollision, resolveOverlap, clampToRoom } from './systems/physics.js';
 import { CombatResolver } from './systems/combat.js';
 import { RoomController, ROOM_STATE } from './systems/room-state.js';
+import { UnlockService } from './systems/unlocks.js';
+import { SaveService } from './systems/save.js';
 import { EncounterRuntime } from './systems/encounter-runtime.js';
 import { AttackGraphResolver } from './systems/attack-graph.js';
 import { PlayerAttackSystem } from './systems/player-attack.js';
@@ -107,9 +109,84 @@ class Game {
       rewards: this.loot,
     });
 
+    // Persistence and progression. The save is read before anything else needs it, so a
+    // returning player's unlocks are in place before the first floor generates.
+    this.save = new SaveService();
+    this.profileSave = this.save.loadProfile();
+    this.settings = this.save.loadSettings();
+    this.statistics = this.save.loadStatistics();
+    this.unlocks = new UnlockService({
+      registry: this.registry,
+      events: this.events,
+      profile: this.profileSave,
+      getRun: () => this.run,
+    });
+
     this.#installSystems();
+    this.#installPersistence();
     this.#installListeners();
     this.loop = new GameLoop((dt) => this.update(dt), (alpha, frameDt) => this.render(alpha, frameDt));
+  }
+
+  /**
+   * Autosave and statistics.
+   *
+   * GDD 21.2 names the moments: entering a room, resolving a pickup or purchase, a boss
+   * victory, a floor transition, and any unlock-critical event. All of those are room
+   * boundaries or discrete events rather than mid-frame states, which is what makes
+   * R-TEC-008's "resume at a safe boundary" achievable — the save is never taken during a
+   * half-resolved collision frame because it is never taken during a frame at all.
+   */
+  #installPersistence() {
+    const persist = () => {
+      this.save.saveProfile(this.profileSave);
+      this.save.saveStatistics(this.statistics);
+    };
+
+    // An unlock is the one event that MUST reach disk immediately: losing it would break
+    // R-PRG-001's "granted exactly once" from the player's side, by asking them to earn the
+    // same thing twice.
+    this.events.on(EVENTS.UNLOCK_GRANTED, persist, { priority: LISTENER_PRIORITY.PROGRESSION });
+
+    this.events.on(EVENTS.ROOM_CLEARED, () => {
+      this.statistics.roomsCleared += 1;
+      persist();
+    }, { priority: LISTENER_PRIORITY.PROGRESSION });
+
+    this.events.on(EVENTS.BOSS_DEFEATED, () => {
+      this.statistics.bossesDefeated += 1;
+      persist();
+    }, { priority: LISTENER_PRIORITY.PROGRESSION });
+
+    this.events.on(EVENTS.FLOOR_ENTERED, () => {
+      persist();
+      this.#saveRun();
+    }, { priority: LISTENER_PRIORITY.PROGRESSION });
+
+    this.events.on(EVENTS.ROOM_ENTERED, () => this.#saveRun(), {
+      priority: LISTENER_PRIORITY.PROGRESSION,
+    });
+
+    this.events.on(EVENTS.RUN_ENDED, (e) => {
+      this.statistics.runs += 1;
+      if (e?.reason === 'DEATH') this.statistics.deaths += 1;
+      persist();
+      // GDD 21.2: a finished run is not resumable, and leaving it on disk would offer the
+      // player a continue that drops them into a dead run.
+      this.save.clearRun();
+    }, { priority: LISTENER_PRIORITY.PROGRESSION });
+  }
+
+  /** Write the resumable run. Only ever called at a room or floor boundary. */
+  #saveRun() {
+    if (!this.run?.save) return;
+    try {
+      this.save.saveRun(this.run.save());
+    } catch (err) {
+      // A run that cannot be serialised must not take the frame down with it. The player
+      // keeps playing; they lose only the ability to resume.
+      console.error(`Could not serialise the run for continue: ${err.message}`);
+    }
   }
 
   /** Register per-phase work in GDD 20.5 order. */
@@ -335,9 +412,24 @@ class Game {
     });
   }
 
-  start() {
+  /**
+   * Start a run.
+   *
+   * @param {object} [opts] forwarded to Run.start: `seed`, `routeId`, `profileId`, `mode`.
+   *   This used to take no arguments and silently discard whatever it was passed, so
+   *   `game.start({ seed })` generated a random seed instead — including in tests, which
+   *   therefore were not reproducing what they claimed to.
+   */
+  start(opts = {}) {
     try {
-      this.run.start();
+      // A returning player's unlocks decide which floors and routes generation may use, so
+      // they go in before the run starts. R-PRG-002 forbids changing a run in progress, so
+      // there is no "apply unlocks afterwards" path to fall back on.
+      this.run.start({
+        unlockFlags: [...this.unlocks.activeFlags()],
+        profileId: this.profileSave.profiles[0] ?? 'PRF-001',
+        ...opts,
+      });
       this.combat.installGuards?.();
     } catch (err) {
       this.fatalError = err;
