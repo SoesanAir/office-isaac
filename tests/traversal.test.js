@@ -477,3 +477,184 @@ test('the fall phase is presentation only: it never moves the projectile', async
   }
   assert.equal(seenFalling, true, 'no projectile ever entered its fall phase');
 });
+
+// ---------------------------------------------------------------------------
+// R-CMB-006: a sealed room must always be finishable
+// ---------------------------------------------------------------------------
+
+async function combatFixture(seed) {
+  const { CombatResolver } = await import('../src/systems/combat.js');
+  const { EncounterRuntime } = await import('../src/systems/encounter-runtime.js');
+  const { RoomController } = await import('../src/systems/room-state.js');
+  const { LootService } = await import('../src/systems/loot.js');
+
+  const events = new EventBus();
+  const run = new Run({ registry, events });
+  run.start({ seed });
+  const combat = new CombatResolver({ registry, events, getRun: () => run });
+  const runtime = new EncounterRuntime({ registry, events, combat, getRun: () => run });
+  const loot = new LootService({ registry, events, getRun: () => run });
+  // Exactly as src/main.js wires it, so a wiring bug shows up here.
+  const controller = new RoomController({
+    events, rng: run.rng, registry, spawner: runtime, rewards: loot,
+  });
+  return { events, run, runtime, controller };
+}
+
+test('R-CMB-006: a cloaked ambusher cannot keep a room sealed forever', async () => {
+  // The reported soft lock. CloakUntilNear hides an enemy until the player comes within
+  // three units, and a cloaked enemy is not drawn — so an ambusher nobody walked near left
+  // the player sealed in a room that looked completely empty, with no way out.
+  const { controller, runtime, run } = await combatFixture('OFFICE-CLOAK-0001');
+  const { buildRoom: build } = await import('../src/systems/room-build.js');
+
+  const node = [...run.floor.nodes.values()].find((n) => n.encounterId);
+  assert.ok(node, 'seed produced no combat room');
+  const room = build({ floor: run.floor, node, registry, rngSource: run.rng });
+  controller.enter(room, { fromSocketId: node.doors[0]?.socketId });
+
+  // Force the worst case: everything in the room is cloaked, and the player stands in a
+  // corner far away and never moves.
+  for (const enemy of runtime.hostiles) {
+    enemy.cloaked = true;
+    enemy.cloakSeconds = 0;
+    enemy.modules = [{
+      spec: (await import('../src/entities/enemy-controllers.js')).getBehaviorModule('CloakUntilNear'),
+      params: { revealRadius: 3 },
+    }].filter((m) => m.spec);
+  }
+  run.player.x = room.rect.x + 1.5;
+  run.player.y = room.rect.y + 1.5;
+
+  let revealed = false;
+  for (let i = 0; i < 900 && !revealed; i += 1) {
+    controller.tick(1 / 60, { hostiles: runtime.hostiles, player: run.player });
+    runtime.update(1 / 60);
+    revealed = runtime.hostiles.some((e) => !e.dead && !e.cloaked);
+  }
+  assert.equal(revealed, true, 'a cloaked enemy never revealed itself; the room stays sealed');
+});
+
+test('R-CMB-006: a sealed room releases itself rather than trapping the player', async () => {
+  // The unconditional failsafe. Whatever the cause — an enemy wedged in geometry, a
+  // behaviour that never resolves, something not yet diagnosed — a player with no move left
+  // is the one state the game must never reach.
+  const { controller, runtime, run } = await combatFixture('OFFICE-DEADLOCK-0001');
+  const { buildRoom: build } = await import('../src/systems/room-build.js');
+
+  const node = [...run.floor.nodes.values()].find((n) => n.encounterId);
+  const room = build({ floor: run.floor, node, registry, rngSource: run.rng });
+  controller.enter(room, { fromSocketId: node.doors[0]?.socketId });
+
+  // Make the room genuinely unclearable: invulnerable, immobile, and never damaged.
+  for (const enemy of runtime.hostiles) {
+    enemy.invulnerable = true;
+    enemy.modules = [];
+    enemy.baseSpeed = 0;
+  }
+
+  let sealedFrames = 0;
+  for (let i = 0; i < 60 * 40; i += 1) {
+    controller.tick(1 / 60, { hostiles: runtime.hostiles, player: run.player });
+    if (!controller.isSealed) break;
+    sealedFrames += 1;
+  }
+  assert.equal(controller.isSealed, false, 'the room never released; the player is trapped');
+  // It must not fire so eagerly that a real fight trips it. 25s is the configured window.
+  assert.ok(sealedFrames > 60 * 20, `released after only ${(sealedFrames / 60).toFixed(1)}s`);
+});
+
+test('the failsafe does not fire while the player is making progress', async () => {
+  // The counterpart guard. Killing something resets the timer, so a long hard fight is
+  // never mistaken for a stuck room.
+  const { controller, runtime, run } = await combatFixture('OFFICE-PROGRESS-0001');
+  const { buildRoom: build } = await import('../src/systems/room-build.js');
+
+  const node = [...run.floor.nodes.values()].find((n) => n.encounterId);
+  const room = build({ floor: run.floor, node, registry, rngSource: run.rng });
+  controller.enter(room, { fromSocketId: node.doors[0]?.socketId });
+  const total = runtime.hostiles.length;
+  assert.ok(total >= 2, 'need at least two enemies to show progress');
+
+  // Kill one enemy every 15 seconds: slower than the fight would normally go, but always
+  // progressing. The room must stay sealed until the last one dies.
+  let killed = 0;
+  for (let i = 0; i < 60 * 15 * (total - 1); i += 1) {
+    controller.tick(1 / 60, { hostiles: runtime.hostiles, player: run.player });
+    if (i % (60 * 15) === 0 && killed < total - 1) {
+      const victim = runtime.hostiles.find((e) => !e.dead);
+      if (victim) { victim.dead = true; killed += 1; }
+    }
+    if (!controller.isSealed) break;
+  }
+  assert.ok(killed >= total - 1, 'test did not get to kill anything');
+  assert.equal(
+    runtime.hostiles.filter((e) => !e.dead && e.required).length, 1,
+    'the failsafe released enemies the player was still working through',
+  );
+});
+
+test('R-CMB-006: no room on any route can trap a player who never attacks', async () => {
+  // The guarantee, swept rather than reasoned about. A player who never fires is the
+  // pessimal case: nothing dies, so every timer that keys on progress is starved.
+  //
+  // This found two IT rooms the damage-based failsafe alone could not release — something
+  // in them made total enemy health drift downward on its own, resetting the timer forever.
+  // That is why there is also a hard cap nothing can reset.
+  const { CombatResolver } = await import('../src/systems/combat.js');
+  const { EncounterRuntime } = await import('../src/systems/encounter-runtime.js');
+  const { RoomController } = await import('../src/systems/room-state.js');
+  const { LootService } = await import('../src/systems/loot.js');
+
+  const unlocks = registry.all('unlock').map((u) => u.id);
+  const sealed = [];
+  let rooms = 0;
+
+  // The failsafes log loudly by design; silence them so a passing run is readable.
+  const realError = console.error;
+  console.error = () => {};
+  try {
+    for (const routeId of ['ROUTE-BASE', 'ROUTE-BOARD', 'ROUTE-OWNERSHIP']) {
+      const events = new EventBus();
+      const run = new Run({ registry, events });
+      run.start({ seed: 'OFFICE-NOTRAP-0001', routeId, unlockFlags: unlocks });
+      const combat = new CombatResolver({ registry, events, getRun: () => run });
+      const runtime = new EncounterRuntime({ registry, events, combat, getRun: () => run });
+      const loot = new LootService({ registry, events, getRun: () => run });
+      const controller = new RoomController({
+        events, rng: run.rng, registry, spawner: runtime, rewards: loot,
+      });
+
+      let step = 0;
+      while (step < 20) {
+        for (const node of run.floor.nodes.values()) {
+          node.visited = false;
+          node.cleared = false;
+          let room;
+          try {
+            room = buildRoom({ floor: run.floor, node, registry, rngSource: run.rng });
+          } catch { continue; }
+          runtime.despawnAll();
+          controller.enter(room, { fromSocketId: node.doors[0]?.socketId });
+          rooms += 1;
+          // Stand in a corner and do nothing at all.
+          run.player.x = room.rect.x + 1.5;
+          run.player.y = room.rect.y + 1.5;
+          for (let i = 0; i < 60 * 90; i += 1) {
+            controller.tick(1 / 60, { hostiles: runtime.hostiles, player: run.player });
+            runtime.update(1 / 60);
+            if (!controller.isSealed) break;
+          }
+          if (controller.isSealed) sealed.push(`${run.floorDef.id} ${node.id} (${controller.state})`);
+        }
+        if (!run.enterFloor(step + 1)) break;
+        step += 1;
+      }
+    }
+  } finally {
+    console.error = realError;
+  }
+
+  assert.ok(rooms > 200, `only simulated ${rooms} rooms`);
+  assert.deepEqual(sealed.slice(0, 8), [], `${sealed.length} rooms trapped the player`);
+});

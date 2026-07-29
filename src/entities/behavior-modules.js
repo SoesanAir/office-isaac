@@ -119,9 +119,23 @@ registerBehaviorModule('ReflectOnOverload', {
 
 registerBehaviorModule('CloakUntilNear', {
   note: 'Invisible until the player is close, then reveals with a full telegraph.',
-  onSpawn: (enemy) => { enemy.cloaked = true; },
-  onUpdate: (enemy, params, ctx) => {
+  onSpawn: (enemy) => { enemy.cloaked = true; enemy.cloakSeconds = 0; },
+  onUpdate: (enemy, params, ctx, dt) => {
     if (!enemy.cloaked) return;
+    // A cloak is an ambush, not a hiding place.
+    //
+    // The room stays sealed while any required enemy lives, and a cloaked enemy is not
+    // drawn — so an ambusher the player never happens to walk near left them locked in a
+    // room that looked completely empty. R-CMB-006 forbids that, so the cloak times out
+    // and the enemy reveals itself on its own.
+    enemy.cloakSeconds = (enemy.cloakSeconds ?? 0) + (dt ?? 0);
+    const patience = params.maxCloakSeconds ?? 6;
+    if (enemy.cloakSeconds >= patience) {
+      enemy.cloaked = false;
+      enterState(enemy, AI_STATE.TELEGRAPH, params.telegraphSeconds ?? 0.4);
+      ctx.events?.emit('fx:sfx', { sound: 'SFX-TELEGRAPH_GENERIC' });
+      return;
+    }
     if (distance(enemy.x, enemy.y, ctx.player.x, ctx.player.y) <= (params.revealRadius ?? 3)) {
       enemy.cloaked = false;
       // GDD 14.3: the reveal is a warning, not the damage. The enemy is forced into

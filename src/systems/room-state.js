@@ -38,6 +38,29 @@ export const ROOM_STATE = Object.freeze({
   BOSS: 'BOSS',
 });
 
+/**
+ * How long a sealed room may go with nothing changing before it releases itself.
+ *
+ * Generously long. The count resets this on every kill and every spawn, so tripping it
+ * means the player has neither killed nor been given anything for the whole window — which
+ * is not a hard fight, it is a stuck room.
+ */
+const DEADLOCK_SECONDS = 25;
+
+/**
+ * Absolute ceiling on how long an ordinary room may hold the player, in seconds.
+ *
+ * Nothing resets this — that is the point. The damage-based failsafe above can be defeated
+ * by anything that makes total enemy health drift downward on its own (a splitter's
+ * children, an add dying to a hazard), and two IT rooms did exactly that in a sweep. This
+ * one cannot be gamed by any enemy behaviour.
+ *
+ * Deliberately long: a normal encounter resolves in fifteen to thirty seconds, so seventy-five
+ * is well past "hard" and firmly into "broken". BOSS rooms are exempt — Appendix E designs
+ * those as two-to-four-minute fights, and the damage-based failsafe still covers them.
+ */
+const SEALED_HARD_CAP_SECONDS = 75;
+
 /** How long lingering hazards get to resolve before the reward appears. */
 const RESOLVE_SECONDS = 0.35;
 
@@ -94,6 +117,10 @@ export class RoomController {
     this.room = roomInstance;
     this.currentWave = 0;
     this.stallTimer = 0;
+    this.deadlockTimer = 0;
+    this.deadlockReleased = false;
+    this.sealedSeconds = 0;
+    this.#lastHealth = Infinity;
 
     // Tell the spawner which room the player is in FIRST, unconditionally.
     //
@@ -243,9 +270,84 @@ export class RoomController {
       }
       this.stallTimer = 0;
     }
+
+    // The unconditional failsafe. R-CMB-006 admits no impossible clears, and the
+    // relocation pass above only helps enemies already flagged `unreachable` — it did
+    // nothing for a cloaked ambusher the player never walked near, an enemy wedged in a
+    // doorway, or any cause not yet diagnosed. A player locked in a room they cannot
+    // finish has no move left, which is the one state the game must never reach.
+    //
+    // So: if nothing about the room has changed for a long time, release whatever is left
+    // and let the doors open. Long enough that no real fight trips it — a stalled count
+    // means no enemy has died and none has spawned for this whole window — and the release
+    // is announced with a shake so it never looks like the room silently gave up.
+    // Keyed on damage dealt, not on the head-count.
+    //
+    // Counting bodies looked right and was wrong twice over. A summoner or splitter changes
+    // the count on its own, so those rooms never tripped the failsafe at all — two IT rooms
+    // stayed sealed indefinitely in a sweep. And a hard fight where the player is dodging
+    // rather than killing would have tripped it while they were still perfectly able to win.
+    //
+    // Total enemy health going DOWN is the honest signal that the player can affect the
+    // room. If that has not moved at all for the whole window, the room is not hard — it is
+    // unwinnable.
+    let health = 0;
+    for (const enemy of ctx.hostiles) {
+      if (!enemy.dead && enemy.required) health += enemy.health;
+    }
+    if (health < this.#lastHealth) this.deadlockTimer = 0;
+    else this.deadlockTimer = remaining > 0 ? this.deadlockTimer + dt : 0;
+    this.#lastHealth = health;
+
+    // The un-resettable ceiling, checked first so no behaviour can starve it.
+    this.sealedSeconds += dt;
+    const bossFight = this.state === ROOM_STATE.BOSS;
+    if (!bossFight && this.sealedSeconds > SEALED_HARD_CAP_SECONDS && remaining > 0) {
+      this.#releaseRequired(ctx, `${SEALED_HARD_CAP_SECONDS}s hard cap`);
+      return;
+    }
+
+    if (this.deadlockTimer > DEADLOCK_SECONDS) {
+      this.deadlockTimer = 0;
+      // The release is not a clear. Skipping the reward removes any incentive to stand
+      // still and wait for the doors, so the failsafe cannot become a strategy.
+      this.#releaseRequired(ctx, `${DEADLOCK_SECONDS}s without damage dealt`);
+    }
+  }
+
+  /**
+   * Open the room by giving up on whatever is left in it.
+   *
+   * The last line of defence for R-CMB-006. A player who cannot finish a room and cannot
+   * leave it has no move at all, which is the one state the game must never reach — so this
+   * always prefers letting them out over preserving the encounter. It logs loudly because
+   * reaching here is a defect somewhere else, not a feature.
+   */
+  #releaseRequired(ctx, why) {
+    this.deadlockReleased = true;
+    let released = 0;
+    for (const enemy of ctx.hostiles) {
+      if (!enemy.dead && enemy.required) { enemy.required = false; released += 1; }
+    }
+    console.error(
+      `Room ${this.room?.nodeId} released (${why}) with ${released} required hostiles alive. `
+      + 'This is a failsafe, not a design: something kept the room from being clearable.',
+    );
+    this.events.emit(EVENTS.SHAKE_REQUESTED, { reason: 'deadlock-release' });
   }
 
   #lastRemaining = -1;
+
+  /** Seconds without the player reducing any required enemy's health. */
+  deadlockTimer = 0;
+
+  /** Set when the failsafe opened the doors, so the clear grants no reward. */
+  deadlockReleased = false;
+
+  #lastHealth = Infinity;
+
+  /** Seconds since this room sealed. Never reset by enemy behaviour. */
+  sealedSeconds = 0;
 
   /**
    * GDD 6.2: a clear waits for required enemies and waves, not decorative
@@ -282,7 +384,8 @@ export class RoomController {
     // R-LOOP-004: the reward roll is deterministic from the run seed and the room
     // stream, so a replay of the same seed produces the same reward.
     const encounter = this.registry.get('encounter', room.encounterId);
-    const profile = encounter?.rewardProfile ?? 'NORMAL_CLEAR';
+    // A room the failsafe released was never actually fought, so it pays nothing.
+    const profile = this.deadlockReleased ? 'NONE' : (encounter?.rewardProfile ?? 'NORMAL_CLEAR');
     if (profile !== 'NONE') {
       const rng = this.rng.stream(RNG_STREAMS.LOOT_PICKUP, room.floorId, room.id, 'clear');
       const reward = this.rewards.rollClearReward({ room, profile, rng });

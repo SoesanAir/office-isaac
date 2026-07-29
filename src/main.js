@@ -98,7 +98,10 @@ class Game {
     });
     this.roomController = new RoomController({
       events: this.events,
-      rng: null,
+      // The Run owns the seed, so the controller borrows its stream source rather than
+      // holding a null until start() patches it in. Passing null here meant any clear that
+      // resolved before start() reassigned it threw inside the reward roll.
+      rng: this.run.rng,
       registry: this.registry,
       spawner: this.runtime,
       rewards: this.loot,
