@@ -165,6 +165,20 @@ export const DAMAGE_TAG = Object.freeze({
   MELEE: 'MELEE',
   STATUS: 'STATUS',
   LETHAL: 'LETHAL',
+  /**
+   * Damage dealt by an active item, Action Card, or Supplement rather than by a
+   * weapon. R-PLY-004 requires on-hit effects to be able to tell sources apart, and
+   * a consumable is genuinely a different source: Appendix C.3 gives several actives
+   * fixed bursts that must NOT be scaled by weapon damage modifiers, and this tag is
+   * how the resolver knows to skip them.
+   */
+  ITEM: 'ITEM',
+  /**
+   * A kill that bypasses the remaining health bar (ACT-001 Task Manager below its
+   * threshold). Tagged separately from LETHAL so on-kill effects can decline to
+   * reward an execute if a future item needs that distinction.
+   */
+  EXECUTE: 'EXECUTE',
 });
 
 /** Item quality bands (GDD 8.3). Hidden from normal UI. */

@@ -25,6 +25,8 @@ import './systems/hooks/world-hooks.js';
 import './systems/hooks/active-hooks.js';
 import './systems/hooks/card-hooks.js';
 import './systems/hooks/supplement-hooks.js';
+import './systems/hooks/charm-hooks.js';
+import './systems/hooks/transformation-hooks.js';
 import './systems/adapters/projectile-adapters.js';
 import './systems/adapters/melee-adapters.js';
 import './systems/adapters/beam-adapters.js';
