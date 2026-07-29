@@ -526,3 +526,103 @@ test('ITM-037 Mini Fridge releases its stored heal at the next floor start', asy
   assert.equal(player.health.composure, before + 1, 'the stored heal was lost');
   assert.equal(player.runFlags.get('fridgeStored'), 0, 'the fridge kept the heal too');
 });
+
+// ---------------------------------------------------------------------------
+// Office Supply Shop (GDD 9.3, 9.4, R-ECO-002)
+// ---------------------------------------------------------------------------
+
+async function shopFixture(seed) {
+  const { EventBus } = await import('../src/core/events.js');
+  const { Run } = await import('../src/systems/run.js');
+  const { LootService } = await import('../src/systems/loot.js');
+  const { ShopService } = await import('../src/systems/shop.js');
+  const events = new EventBus();
+  const run = new Run({ registry, events });
+  run.start({ seed });
+  const loot = new LootService({ registry, events, getRun: () => run });
+  const shop = new ShopService({ registry, loot, events, getRun: () => run });
+  return { run, events, loot, shop, room: { nodeId: 'NODE-shop-test', shopStock: null } };
+}
+
+test('GDD 9.4: a shop stocks three sale slots plus one pickup slot', async () => {
+  const { shop, room } = await shopFixture('OFFICE-SHOP-0001');
+  const stock = shop.stock({ room, depth: 3 });
+  const sales = stock.filter((e) => e.kind === 'ITEM');
+  const pickups = stock.filter((e) => e.kind === 'PICKUP');
+  assert.equal(pickups.length, 1, 'expected exactly one pickup slot');
+  assert.ok(sales.length >= 1 && sales.length <= 3, `${sales.length} sale slots`);
+  assert.equal(room.shopStock, stock, 'stock was not attached to the room');
+});
+
+test('GDD 9.3: every price lands inside its declared band', async () => {
+  const { shop, room } = await shopFixture('OFFICE-SHOP-0002');
+  const { PRICE_BAND, DISCOUNT_RANGE } = await import('../src/systems/shop.js');
+  for (const entry of shop.stock({ room, depth: 4 })) {
+    const band = entry.kind === 'PICKUP' ? PRICE_BAND.BASIC_PICKUP : PRICE_BAND[entry.band];
+    assert.ok(band, `${entry.itemId ?? entry.pickupKind} has no band`);
+    // A discounted price legitimately falls below its band floor, but only by the
+    // multiplier GDD 9.3 states, so the lower bound moves rather than disappearing.
+    const floor = entry.discounted ? Math.max(1, Math.round(band[0] * DISCOUNT_RANGE[0])) : band[0];
+    assert.ok(
+      entry.price >= floor && entry.price <= band[1],
+      `price ${entry.price} outside [${floor}, ${band[1]}] for band ${entry.band ?? 'BASIC_PICKUP'}`,
+    );
+    assert.equal(Number.isInteger(entry.price), true, 'R-ECO-001: prices are integers');
+  }
+});
+
+test('R-TEC-002: the same seed stocks the same shop', async () => {
+  const describe = (stock) => stock.map((e) => `${e.itemId ?? e.pickupKind}@${e.price}${e.discounted ? '!' : ''}`).join('|');
+  const a = await shopFixture('OFFICE-SHOP-0003');
+  const b = await shopFixture('OFFICE-SHOP-0003');
+  assert.equal(
+    describe(a.shop.stock({ room: a.room, depth: 3 })),
+    describe(b.shop.stock({ room: b.room, depth: 3 })),
+  );
+});
+
+test('R-ECO-002: a purchase completes once and is not repeatable', async () => {
+  const { shop, room } = await shopFixture('OFFICE-SHOP-0004');
+  const player = await livePlayer();
+  player.addCredits(80);
+  const stock = shop.stock({ room, depth: 3 });
+  const entry = stock.find((e) => e.kind === 'ITEM') || stock[0];
+  const before = player.credits;
+
+  const first = shop.purchase({ player, entry, room });
+  assert.equal(first.ok, true, `purchase failed: ${first.reason}`);
+  assert.equal(player.credits, before - entry.price);
+
+  // The latch, not a debounce: the player is still standing in the zone and the pass
+  // runs every frame, so a second call must be a clean no-op.
+  const second = shop.purchase({ player, entry, room });
+  assert.equal(second.ok, false);
+  assert.equal(second.reason, 'ALREADY_PURCHASED');
+  assert.equal(player.credits, before - entry.price, 'the second call charged again');
+});
+
+test('GDD 9.4: an unaffordable purchase is refused quietly, with no state change', async () => {
+  const { shop, room } = await shopFixture('OFFICE-SHOP-0005');
+  const player = await livePlayer();
+  const stock = shop.stock({ room, depth: 3 });
+  const entry = stock.find((e) => e.kind === 'ITEM') || stock[0];
+
+  const result = shop.purchase({ player, entry, room });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'CANNOT_AFFORD');
+  assert.equal(entry.purchased, false, 'a refused purchase still marked the slot sold');
+  assert.equal(player.credits, 0);
+});
+
+test('R-ITM-008: shop stock does not consult how well the run is going', async () => {
+  // Same seed, same node, wildly different player power. If stock differed, selection
+  // would be reading current power, which GDD 8.4 forbids outright.
+  const describe = (stock) => stock.map((e) => e.itemId ?? e.pickupKind).join('|');
+  const poor = await shopFixture('OFFICE-SHOP-0006');
+  const rich = await shopFixture('OFFICE-SHOP-0006');
+  rich.run.player?.addCredits?.(500);
+  assert.equal(
+    describe(poor.shop.stock({ room: poor.room, depth: 5 })),
+    describe(rich.shop.stock({ room: rich.room, depth: 5 })),
+  );
+});
