@@ -464,13 +464,13 @@ const passives = [
   }),
   item('ITM-047', 'confidential_stamp', {
     q: 2, w: 1.0, pools: [POOL.SUPPLY_CLOSET, POOL.SECRET_MAINTENANCE],
-    tags: ['STATIONERY', 'FORBIDDEN'], category: 'Critical',
+    tags: ['STATIONERY', 'FORBIDDEN', 'MANAGEMENT'], category: 'Critical',
     effects: [{ hook: 'CRIT_VS_FULL_HEALTH', params: { bonus: 0.25 } }],
     notes: 'Slightly improves rare Secret Maintenance item weights. Rubber Stamp gains a special red impact visual.',
     original: 'A confidential stamp that hits hardest on an untouched target.',
   }),
   item('ITM-048', 'calendar_reminder', {
-    q: 2, w: 1.0, pools: SUPPLY, tags: ['INFORMATION'], category: 'Map utility',
+    q: 2, w: 1.0, pools: SUPPLY, tags: ['INFORMATION', 'MANAGEMENT'], category: 'Map utility',
     effects: [{ hook: 'REVEAL_BOSS_ROOM', params: {} }],
     notes: 'Reveals the boss-room icon and elevator direction. Does not reveal the path between rooms.',
     original: 'A calendar reminder as navigation; withholding the path keeps exploration meaningful.',
@@ -488,7 +488,7 @@ const passives = [
     original: 'The reply-all catastrophe as a symmetric duplication effect; the room becomes a regrettable email thread.',
   }),
   item('ITM-050', 'open_calendar', {
-    q: 0, w: 0.75, pools: SUPPLY_RECORDS, tags: ['LIABILITY', 'TRADEOFF'],
+    q: 0, w: 0.75, pools: SUPPLY_RECORDS, tags: ['LIABILITY', 'TRADEOFF', 'MANAGEMENT'],
     category: 'Liability', liability: true,
     effects: [{ hook: 'SHORTEN_ENEMY_COOLDOWNS', params: { mul: 0.85 } }],
     notes: 'Enemies act faster, and clear rewards become more likely. Boss phase timers are not shortened unless explicitly tagged.',
@@ -515,7 +515,7 @@ const passives = [
     original: 'Burnout as a risk curve: less to lose, more to give.',
   }),
   item('ITM-054', 'mandatory_training', {
-    q: 0, w: 0.75, pools: SUPPLY_RECORDS, tags: ['LIABILITY', 'TRADEOFF'],
+    q: 0, w: 0.75, pools: SUPPLY_RECORDS, tags: ['LIABILITY', 'TRADEOFF', 'MANAGEMENT'],
     category: 'Liability', liability: true,
     effects: [{ hook: 'DISABLE_ACTIVE_UNTIL_CLEARS', params: { clears: 3 } }],
     notes: 'Disables active-item use for the first three hostile clears of each floor, then grants a floor-long damage increase. Charge still accumulates while disabled.',
@@ -555,14 +555,14 @@ const passives = [
     original: 'A spare keyboard in a drawer as an extra life, with the weapon reset as the price.',
   }),
   item('ITM-059', 'corporate_card', {
-    q: 3, w: 0.65, pools: SUPPLY_SHOP, tags: ['ECONOMY'], category: 'Economy',
+    q: 3, w: 0.65, pools: SUPPLY_SHOP, tags: ['ECONOMY', 'MANAGEMENT'], category: 'Economy',
     effects: [{ hook: 'CREDIT_DEBT_LINE', params: { limit: 15 } }],
     notes: 'Shop items may be bought on a temporary debt balance. Future credit pickups pay the debt first. Debt does not persist between runs.',
     original: 'Putting it on expenses as a credit line, with the debt visible in the HUD.',
   }),
   item('ITM-060', 'suggestion_box', {
     q: 3, w: 0.65, pools: [POOL.SUPPLY_CLOSET, POOL.SECRET_MAINTENANCE],
-    tags: ['REROLL'], category: 'Reroll support',
+    tags: ['REROLL', 'MANAGEMENT'], category: 'Reroll support',
     effects: [{ hook: 'REROLL_LEFT_PEDESTAL', params: {} }],
     notes: 'The first uncollected pedestal item left on each floor is rerolled once when the player exits and re-enters its room. Uses the same pool and cannot reroll into the same item.',
     original: 'A suggestion box as a second opinion on an item you walked away from.',
