@@ -54,10 +54,20 @@ export class RoomInstance {
     this.rewardAnchor = null;
     this.doorWorldPositions = new Map();
 
-    /** state_layer (GDD 12.1). */
+    /**
+     * state_layer (GDD 12.1).
+     *
+     * `visited` and `cleared` delegate to the graph node rather than shadowing it.
+     * They are floor-level facts: the map reads them, the generator's validation reads
+     * them, and the run save persists them with the floor instance (R-TEC-008,
+     * R-ROM-005). Two copies would drift the moment one system updated only its own —
+     * which is exactly what happened before this.
+     */
     this.state = {
-      visited: false,
-      cleared: false,
+      get visited() { return node.visited; },
+      set visited(v) { node.visited = v; },
+      get cleared() { return node.cleared; },
+      set cleared(v) { node.cleared = v; },
       doorsSealed: false,
       wave: 0,
       destroyedObjectIds: new Set(),
@@ -69,6 +79,35 @@ export class RoomInstance {
   /** Centre of the room in world units. */
   get centre() {
     return { x: this.rect.x + this.rect.w / 2, y: this.rect.y + this.rect.h / 2 };
+  }
+
+  /**
+   * The room's doors.
+   *
+   * Doors belong to the graph node, because the graph is what connects rooms — but
+   * the RoomController operates on a room instance and has no business reaching
+   * through to the node. So the instance exposes them directly, and there is still
+   * exactly one copy of the data (GDD 11.2: a door edge is a property of the graph).
+   */
+  get doors() {
+    return this.node.doors;
+  }
+
+  /**
+   * The encounter chosen for this room, if any.
+   *
+   * Assigned by the Run during floor generation (GDD 11.4 step 11) and stored on the
+   * graph node, because it has to survive a save and a revisit alongside the rest of
+   * the floor instance (R-TEC-008). Exposed here so the room lifecycle can ask a room
+   * whether it is hostile without reaching through to the graph.
+   */
+  get encounterId() {
+    return this.node.encounterId;
+  }
+
+  /** Boss assigned to this arena, once boss content exists. */
+  get bossId() {
+    return this.node.bossId ?? null;
   }
 
   /** Spawn zone rects in world coordinates. */

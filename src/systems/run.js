@@ -23,6 +23,7 @@ import { FloorGenerator } from './floorgen.js';
 import { makeFloorValidator } from './floor-validate.js';
 import { TemplateIndex } from './template-index.js';
 import { buildRoom, NON_HOSTILE_ROLES } from './room-build.js';
+import { selectEncounter } from './encounter-select.js';
 
 /** Run states from GDD 3.3. */
 export const RUN_STATE = Object.freeze({
@@ -194,6 +195,13 @@ export class Run {
         unlockFlags: this.unlockFlags,
       });
       floor = result.floor;
+      // GDD 11.4 step 11: encounters are selected AFTER topology and templates, as a
+      // separate pass over the finished graph. Doing it here rather than lazily on
+      // room entry matters because the room lifecycle has to know whether a room is
+      // hostile before it can decide to seal the doors (GDD 12.3) — and because the
+      // whole floor's composition should be settled before the player gains control
+      // (step 14).
+      this.#assignEncounters(floor, resolved);
       this.floorCache.set(step, floor);
       this.events.emit(EVENTS.FLOOR_GENERATED, {
         floorId: floor.id, depth: floorDef.depth, metrics: floor.metrics,
@@ -210,6 +218,36 @@ export class Run {
       floorId: floor.id, depth: floorDef.depth, department: this.department?.id,
     });
     return floor;
+  }
+
+  /**
+   * GDD 11.4 step 11: choose an encounter for every hostile-capable room.
+   *
+   * This runs after the generator's own validation, which asserts no node carries an
+   * encounter during layout (R-FLR-007) — the separation the GDD demands is between
+   * *architecture* and encounters, not between a finished floor and its contents.
+   */
+  #assignEncounters(floor, resolvedFloorDef) {
+    for (const node of floor.nodes.values()) {
+      if (NON_HOSTILE_ROLES.has(node.role)) continue;
+      // The boss arena gets a boss, not an encounter (GDD R-BSS-001).
+      if (node.role === ROOM_ROLE.MANAGER_OFFICE) continue;
+      const template = this.registry.get('roomTemplate', node.templateId);
+      if (!template) continue;
+      // A template that declares no encounter tags is an authored story room, and
+      // GDD 12.2 says an empty combat-capable room is a legitimate state.
+      if ((template.allowedEncounterTags || []).length === 0) continue;
+
+      const selection = selectEncounter({
+        node,
+        template,
+        floorDef: resolvedFloorDef,
+        registry: this.registry,
+        rngSource: this.rng,
+      });
+      node.encounterId = selection.encounter?.id ?? null;
+      node.encounterBudget = selection.budget;
+    }
   }
 
   /** Advance to the next route step. Only the elevator calls this. */

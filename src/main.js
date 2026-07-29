@@ -19,6 +19,12 @@ import { Renderer, LAYER_ORDER } from './render/renderer.js';
 import { InputSystem, ACTION } from './systems/input.js';
 import { Run, RUN_STATE, doorCost } from './systems/run.js';
 import { moveWithCollision, resolveOverlap, clampToRoom } from './systems/physics.js';
+import { CombatResolver } from './systems/combat.js';
+import { RoomController, ROOM_STATE } from './systems/room-state.js';
+import { EncounterRuntime } from './systems/encounter-runtime.js';
+import { AttackGraphResolver } from './systems/attack-graph.js';
+import { PlayerAttackSystem } from './systems/player-attack.js';
+import { runEffects } from './systems/effects.js';
 import { Hud } from './ui/hud.js';
 import { loadContent } from '../content/index.js';
 import './register-all.js';
@@ -49,6 +55,40 @@ class Game {
      */
     this.fx = { walkPhase: 0, hitFlash: 0 };
 
+    // --- combat stack -------------------------------------------------------
+    // Order matters only for construction: the runtime needs the resolver, and the
+    // resolver needs to be able to ask the runtime for the live hostile list, so the
+    // cycle is broken with accessor functions rather than by reordering.
+    this.runtime = new EncounterRuntime({
+      registry: this.registry, events: this.events, combat: null, getRun: () => this.run,
+    });
+    this.combat = new CombatResolver({
+      events: this.events,
+      rng: null, // assigned when the run creates its RNG source
+      getRun: () => this.run,
+      getHostiles: () => this.runtime.hostiles,
+      // Bridges damage events into the declarative effect registry, so items react
+      // without the resolver knowing what an item is (R-TEC-006).
+      runItemEffects: (ctx) => runEffects(this.#effectOwners(), ctx.timing, ctx),
+    });
+    this.runtime.combat = this.combat;
+
+    this.attackGraph = new AttackGraphResolver({ registry: this.registry });
+    this.playerAttack = new PlayerAttackSystem({
+      registry: this.registry,
+      events: this.events,
+      attackGraph: this.attackGraph,
+      getRun: () => this.run,
+      getRuntime: () => this.runtime,
+    });
+    this.roomController = new RoomController({
+      events: this.events,
+      rng: null,
+      registry: this.registry,
+      spawner: this.runtime,
+      rewards: this.#rewardsStub(),
+    });
+
     this.#installSystems();
     this.#installListeners();
     this.loop = new GameLoop((dt) => this.update(dt), (alpha, frameDt) => this.render(alpha, frameDt));
@@ -63,9 +103,21 @@ class Game {
         });
       })
       .register(PHASE.MOVEMENT_INTENT, 'playerMovement', (dt) => this.#movePlayer(dt))
+      // GDD 20.5 puts AI intent after movement intent and before attack creation, so
+      // an enemy always reacts to where the player is *this* tick, never last tick's.
+      .register(PHASE.AI_INTENT, 'encounterRuntime', (dt) => this.runtime.update(dt))
+      .register(PHASE.ATTACK_CREATION, 'playerAttack', (dt) => {
+        this.playerAttack.update(dt, this.frameInput);
+        // A charge releases the moment the aim input drops.
+        if (!this.frameInput?.firing) this.playerAttack.releaseCharge(this.frameInput);
+      })
+      .register(PHASE.PHYSICS, 'projectileSteering', (dt) => this.playerAttack.steerProjectiles(dt))
       .register(PHASE.PHYSICS, 'doorTraversal', (dt) => this.#checkDoors(dt))
+      .register(PHASE.ROOM_CLEAR, 'roomLifecycle', (dt) => {
+        this.roomController.tick(dt, { hostiles: this.runtime.hostiles, player: this.run.player });
+      })
       .register(PHASE.PRESENTATION, 'hudBanners', (dt) => {
-        this.hud.update(dt, this.run.state === RUN_STATE.ROOM_COMBAT);
+        this.hud.update(dt, this.roomController.isSealed);
         this.hud.showMap = this.input.mapRequested();
       });
   }
@@ -78,11 +130,36 @@ class Game {
       this.debug.genAttempts = e.attempts;
     }, { priority: LISTENER_PRIORITY.PRESENTATION });
 
+    // MECHANIC priority: the room lifecycle has to start before anything presentational
+    // reads its state, and before the first simulation tick of the new room.
+    this.events.on(EVENTS.ROOM_ENTERED, (e) => {
+      const room = this.run.room;
+      if (!room) return;
+      // The run creates its RNG source during start(), and start() enters the first
+      // room before returning — so the services that need scoped streams are wired
+      // here, at the first point where the source is guaranteed to exist.
+      if (!this.combat.rng) {
+        this.combat.rng = this.run.rng;
+        this.roomController.rng = this.run.rng;
+      }
+      resolveOverlap(this.run.player, room.collision);
+      // Transient attack state must not survive a threshold: a beam left running or an
+      // arc mid-swing would deal damage in a room the player has already left.
+      this.playerAttack.reset();
+      this.runtime.despawnAll();
+      room.entrySocketId = e.fromSocketId ?? null;
+      this.roomController.enter(room, { fromSocketId: e.fromSocketId });
+    }, { priority: LISTENER_PRIORITY.MECHANIC });
+
     this.events.on(EVENTS.ROOM_ENTERED, () => {
       const room = this.run.room;
       if (!room) return;
       this.camera.setRoom(room.rect, this.run.player);
-      resolveOverlap(this.run.player, room.collision);
+    }, { priority: LISTENER_PRIORITY.PRESENTATION });
+
+    this.events.on(EVENTS.ROOM_CLEARED, () => {
+      this.camera.shake(0.12, 0.14);
+      this.hud.queueBanner({ title: 'Room clear', seconds: 1.1, priority: 20 });
     }, { priority: LISTENER_PRIORITY.PRESENTATION });
 
     this.events.on(EVENTS.PLAYER_DAMAGED, () => {
@@ -98,9 +175,50 @@ class Game {
     }, { priority: LISTENER_PRIORITY.PRESENTATION });
   }
 
+  /**
+   * Everything that can react to an item, in a stable order.
+   * The combat resolver calls this rather than reaching into the player, so item
+   * reactions stay declarative (R-GOV-003, R-TEC-006).
+   */
+  #effectOwners() {
+    const player = this.run?.player;
+    if (!player) return [];
+    const owners = [];
+    let order = 0;
+    for (const id of player.passiveIds) {
+      const def = this.registry.get('passive', id);
+      if (def) owners.push({ id, order: order++, effects: def.effects, def });
+    }
+    if (player.charmId) {
+      const def = this.registry.get('charm', player.charmId);
+      if (def) owners.push({ id: def.id, order: order++, effects: def.effects, def });
+    }
+    for (const id of player.transformationIds) {
+      const def = this.registry.get('transformation', id);
+      if (def) owners.push({ id: def.id, order: order++, effects: def.effects, def });
+    }
+    return owners;
+  }
+
+  /**
+   * Minimal reward service.
+   *
+   * The full loot service is Phase 4. This deliberately grants nothing rather than
+   * guessing: R-AI-004 says a placeholder must not masquerade as a finished mechanic,
+   * and a room that quietly drops the wrong thing is worse than one that drops
+   * nothing while the pools are still being authored.
+   */
+  #rewardsStub() {
+    return {
+      rollClearReward: () => null,
+      placePedestal: () => null,
+    };
+  }
+
   start() {
     try {
       this.run.start();
+      this.combat.installGuards?.();
     } catch (err) {
       this.fatalError = err;
       // Surface content gaps loudly rather than showing a black screen
@@ -157,7 +275,8 @@ class Game {
     const room = this.run.room;
     const player = this.run.player;
     if (!room || !player) return;
-    if (this.run.state === RUN_STATE.ROOM_COMBAT && !this.run.roomNode.cleared) return;
+    // GDD 12.3: normal doors are sealed during active combat.
+    if (this.roomController.isSealed) return;
 
     for (const [socketId, pos] of room.doorWorldPositions) {
       const door = pos.door;
@@ -200,9 +319,15 @@ class Game {
       r.drawRoom(this.run.roomNode, room.template, room.department, room.rect);
       this.#renderDecorations(room);
       this.#renderObjects(room);
+      this.#renderHazards(room);
       this.#renderDoors(room);
       r.drawDebugZones(room.template, room.rect);
+      this.#renderEnemies();
       this.#renderPlayer(player);
+      // Projectiles draw above every entity so a hostile shot can never be hidden
+      // behind a body or a cabinet (GDD 18.2 layer order, R-ART-003).
+      this.#renderProjectiles();
+      this.#renderPlayerAttacks();
       r.drawLighting(room.department);
     }
 
@@ -243,7 +368,7 @@ class Game {
   }
 
   #renderDoors(room) {
-    const sealed = this.run.state === RUN_STATE.ROOM_COMBAT && !this.run.roomNode.cleared;
+    const sealed = this.roomController.isSealed;
     for (const [, pos] of room.doorWorldPositions) {
       const door = pos.door;
       if (!door.discovered) continue;
@@ -264,6 +389,128 @@ class Game {
           });
         }
       }
+    }
+  }
+
+  #renderHazards(room) {
+    for (const hazard of room.hazards) {
+      if (hazard.disabled) continue;
+      const def = this.registry.get('hazard', hazard.defId);
+      if (!def) continue;
+      // R-ENV-002: a mechanical hazard must be visually distinct from a decorative
+      // decal, so only mechanical ones get the hazard outline and full opacity.
+      const alpha = def.mechanical ? (hazard.active ? 0.7 : 0.35) : 0.25;
+      this.renderer.drawRect(
+        hazard.x + hazard.w / 2, hazard.y + hazard.h / 2, hazard.w, hazard.h,
+        def.mechanical ? '#ff9a2a' : '#3a3a4a',
+        { layer: LAYER_ORDER.FLOOR_DECAL, alpha },
+      );
+      if (def.mechanical) {
+        // A hard outlined edge is the non-colour cue (R-UIX-005): the player can see
+        // exactly where the dangerous region stops.
+        this.renderer.drawRect(
+          hazard.x + hazard.w / 2, hazard.y + hazard.h / 2, hazard.w, hazard.h,
+          '#ffe9a8', { layer: LAYER_ORDER.FLOOR_DECAL, fill: false, width: 1, alpha: 0.9 },
+        );
+      }
+    }
+  }
+
+  #renderEnemies() {
+    for (const enemy of this.runtime.hostiles) {
+      if (enemy.dead) continue;
+      if (enemy.cloaked) continue;
+      const variant = enemy.variant;
+      this.renderer.drawSprite(enemy.def.spriteId, enemy.x, enemy.y, {
+        // Hostile outline family, always. GDD 18.5 makes this the single signal for
+        // allegiance, so it is never conditional on state or palette.
+        outline: 'HOSTILE',
+        layer: LAYER_ORDER.ENTITY,
+        swap: variant?.paletteSwap,
+        scale: variant?.scale ? Math.max(1, Math.round(2 * variant.scale)) : undefined,
+        flash: enemy.hitFlash > 0,
+        alpha: enemy.staged ? 0.55 : 1,
+      });
+
+      // Telegraph ring: the authored wind-up made visible (R-CMB-002, GDD 14.3).
+      if (enemy.state === 'TELEGRAPH' && enemy.pendingAttack) {
+        const total = enemy.pendingAttack.attack.telegraphSeconds || 0.3;
+        const progress = 1 - enemy.stateTimer / total;
+        this.renderer.drawCircle(enemy.x, enemy.y, enemy.radius + 0.35 + progress * 0.4,
+          '#ff5a4a', { fill: false, width: 2, alpha: 0.35 + progress * 0.5, layer: LAYER_ORDER.VFX });
+      }
+      // A locked predictive destination is shown, because R-ENM-007 requires the
+      // target to be committed AND visible before the attack resolves.
+      if (enemy.lockedTarget && (enemy.state === 'TELEGRAPH' || enemy.state === 'DASH')) {
+        this.renderer.drawCircle(enemy.lockedTarget.x, enemy.lockedTarget.y, 0.5,
+          '#ff5a4a', { fill: false, width: 2, alpha: 0.6, layer: LAYER_ORDER.VFX });
+      }
+      if (enemy.blinkTarget) {
+        this.renderer.drawCircle(enemy.blinkTarget.x, enemy.blinkTarget.y, 0.6,
+          '#c78af0', { fill: false, width: 2, alpha: 0.7, layer: LAYER_ORDER.VFX });
+      }
+      // Shield state has to be legible or "why did that do nothing" becomes a bug
+      // report rather than a lesson.
+      if (enemy.shielded || enemy.shieldHp > 0) {
+        this.renderer.drawCircle(enemy.x, enemy.y, enemy.radius + 0.28,
+          '#3fb0b8', { fill: false, width: 2, alpha: 0.8, layer: LAYER_ORDER.VFX });
+      }
+      // Damaged enemies show a thin bar: GDD D-013 allows obvious counters, and
+      // "is this nearly dead" is the most useful one in a crowded room.
+      if (enemy.health < enemy.maxHealth) {
+        const frac = Math.max(0, enemy.health / enemy.maxHealth);
+        this.renderer.drawRect(enemy.x, enemy.y - enemy.radius - 0.45, 1.1, 0.12,
+          '#2a1420', { layer: LAYER_ORDER.VFX, alpha: 0.8 });
+        this.renderer.drawRect(
+          enemy.x - (1.1 * (1 - frac)) / 2, enemy.y - enemy.radius - 0.45, 1.1 * frac, 0.12,
+          '#e04a54', { layer: LAYER_ORDER.VFX },
+        );
+      }
+    }
+  }
+
+  #renderProjectiles() {
+    this.runtime.projectiles.pool.forEach((p) => {
+      if (p.__dead) return;
+      const hostile = p.owner !== 'PLAYER';
+      // Hostile fire is drawn slightly larger with the hostile outline family, so it
+      // stays the most readable thing on screen no matter how busy the build gets
+      // (GDD 2.9 readable chaos, R-ART-003).
+      this.renderer.drawSprite(p.spriteId || 'prj_keycap', p.x, p.y, {
+        outline: hostile ? 'HOSTILE' : 'FRIENDLY',
+        layer: LAYER_ORDER.PROJECTILE,
+        scale: hostile ? 3 : 2,
+      });
+    });
+  }
+
+  #renderPlayerAttacks() {
+    // Melee arcs and slams: brief, bright, and gone.
+    for (const arc of this.playerAttack.arcs) {
+      this.renderer.drawCircle(arc.x, arc.y, arc.radius, '#bfe4ff', {
+        fill: false, width: arc.isSlam ? 3 : 2, alpha: 0.5, layer: LAYER_ORDER.VFX,
+      });
+    }
+    for (const beam of this.playerAttack.beams) {
+      const x2 = beam.x + Math.cos(beam.angle) * beam.range;
+      const y2 = beam.y + Math.sin(beam.angle) * beam.range;
+      this.renderer.drawLine(beam.x, beam.y, x2, y2, '#bfe4ff', {
+        width: Math.max(2, beam.width * 8), alpha: 0.75, layer: LAYER_ORDER.PROJECTILE,
+      });
+    }
+    for (const place of this.playerAttack.placements) {
+      const x2 = place.x + Math.cos(place.angle) * place.range;
+      const y2 = place.y + Math.sin(place.angle) * place.range;
+      this.renderer.drawLine(place.x, place.y, x2, y2, '#c8a8f0', {
+        width: 6, alpha: 0.4, layer: LAYER_ORDER.VFX,
+      });
+    }
+    // Enemy pulses read as expanding rings so their radius is unambiguous.
+    for (const pulse of this.runtime.pulses) {
+      const t = 1 - pulse.remaining / pulse.seconds;
+      this.renderer.drawCircle(pulse.x, pulse.y, pulse.radius * (0.5 + t * 0.5), '#ff5a4a', {
+        fill: false, width: 3, alpha: 1 - t, layer: LAYER_ORDER.VFX,
+      });
     }
   }
 
@@ -398,7 +645,15 @@ function boot() {
   game.start();
 }
 
-if (typeof document !== 'undefined') {
+/**
+ * Auto-boot in the browser, but never when a harness has asked us not to.
+ *
+ * Importing this module used to start a game immediately, which meant a test that
+ * imported `Game` to construct its own instance ended up with two live games sharing
+ * one document — both attaching input listeners, both ticking. Tests set
+ * `globalThis.__OI_NO_AUTOBOOT` before importing, so the module stays a module.
+ */
+if (typeof document !== 'undefined' && !globalThis.__OI_NO_AUTOBOOT) {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 }

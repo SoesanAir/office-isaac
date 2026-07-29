@@ -105,9 +105,26 @@ export class CombatResolver {
 
     // A cancellable guard point so items (and only items) can veto or reshape
     // damage before it resolves. Listeners run GUARD -> MECHANIC -> ITEM.
+    /**
+     * Player health is measured in half-units and enemy health in hit points, so the
+     * two damage entry points deliberately name their magnitude differently. That is a
+     * trap for callers: passing `amount` here used to leave `halfUnits` undefined, and
+     * the resulting NaN failed every `> 0` comparison downstream — so the hit reported
+     * APPLIED while dealing nothing at all.
+     *
+     * Both names are now accepted, and a magnitude that is neither is a programming
+     * error rather than a silently harmless hit.
+     */
+    const magnitude = req.halfUnits ?? req.amount;
+    if (!Number.isFinite(magnitude)) {
+      throw new Error(
+        `damagePlayer needs a finite halfUnits (or amount); got ${JSON.stringify(req.halfUnits ?? req.amount)}`,
+      );
+    }
+
     const proposal = {
       player,
-      halfUnits: req.halfUnits,
+      halfUnits: magnitude,
       tags,
       sourceId: req.sourceId,
       sourceAllegiance: req.sourceAllegiance || ALLEGIANCE.ENEMY,

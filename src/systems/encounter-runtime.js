@@ -81,17 +81,13 @@ export class EncounterRuntime {
     this.currentRoom = roomInstance;
 
     if (wave === 0) {
-      const selection = selectEncounter({
-        node: roomInstance.node,
-        template: roomInstance.template,
-        floorDef: { ...run.floorDef, departmentTag: run.department?.tag ?? run.floorDef.department },
-        registry: this.registry,
-        rngSource: run.rng,
-      });
-      this.currentEncounter = selection.encounter;
-      roomInstance.node.encounterId = selection.encounter?.id ?? null;
-      roomInstance.encounterBudget = selection.budget;
-      if (!selection.encounter) return 0;
+      // The Run assigned this during floor generation (GDD 11.4 step 11). The runtime
+      // does not choose: if it did, the room lifecycle could not know whether to seal
+      // the doors before the first enemy existed.
+      this.currentEncounter = roomInstance.node.encounterId
+        ? this.registry.get('encounter', roomInstance.node.encounterId)
+        : null;
+      if (!this.currentEncounter) return 0;
     }
     if (!this.currentEncounter) return 0;
 

@@ -96,7 +96,6 @@ export class RoomController {
     this.stallTimer = 0;
 
     const state = roomInstance.state;
-    const firstVisit = !state.visited;
     state.visited = true;
 
     // R-ROM-005: a revisited room restores its persistent state rather than
@@ -104,7 +103,6 @@ export class RoomController {
     if (state.cleared) {
       this.state = ROOM_STATE.CLEARED;
       this.#openDoors('revisit-cleared');
-      this.events.emit(EVENTS.ROOM_ENTERED, { room: roomInstance, firstVisit, cleared: true });
       return;
     }
 
@@ -118,11 +116,8 @@ export class RoomController {
       this.state = ROOM_STATE.IDLE;
       state.cleared = true;
       this.#openDoors('non-hostile');
-      this.events.emit(EVENTS.ROOM_ENTERED, { room: roomInstance, firstVisit, cleared: true });
       return;
     }
-
-    this.events.emit(EVENTS.ROOM_ENTERED, { room: roomInstance, firstVisit, cleared: false });
 
     // Doors close after the player crosses the entry threshold, and the grace
     // window begins (GDD 12.3, R-ENM-002).
