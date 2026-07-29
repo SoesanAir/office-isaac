@@ -369,6 +369,35 @@ export class Renderer {
   // Primitives used by VFX and debug views
   // -------------------------------------------------------------------------
 
+  /**
+   * A filled ellipse in world units.
+   *
+   * Exists for contact shadows and spent-projectile marks, both of which need a squashed
+   * circle to read as lying on the floor rather than standing up in the world. Uses
+   * `ctx.ellipse` rather than a scaled arc so the transform stack is left untouched — a
+   * stray scale() leaking into the next draw call is a whole-frame corruption.
+   */
+  drawEllipse(wx, wy, radiusX, radiusY, color, { layer = LAYER_ORDER.FLOOR_DECAL, alpha = 1 } = {}) {
+    const p = this.camera.worldToScreen(wx, wy, this._pt);
+    const px = p.x;
+    const py = p.y;
+    const rx = Math.max(0.5, radiusX * TILE);
+    const ry = Math.max(0.5, radiusY * TILE);
+    const c = this.settings.grayscale ? toGrayscale(color) : color;
+    this.push(layer, (ctx) => {
+      const prev = ctx.globalAlpha;
+      ctx.globalAlpha = prev * alpha;
+      ctx.beginPath();
+      // The headless test stub records calls rather than rasterising, and older canvas
+      // implementations lack ellipse(), so fall back to a circle rather than throwing.
+      if (typeof ctx.ellipse === 'function') ctx.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2);
+      else ctx.arc(px, py, rx, 0, Math.PI * 2);
+      ctx.fillStyle = c;
+      ctx.fill();
+      ctx.globalAlpha = prev;
+    }, wy);
+  }
+
   drawCircle(wx, wy, radiusWorld, color, { layer = LAYER_ORDER.VFX, alpha = 1, fill = true, width = 2 } = {}) {
     const p = this.camera.worldToScreen(wx, wy, this._pt);
     const px = p.x;

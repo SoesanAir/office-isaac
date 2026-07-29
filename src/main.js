@@ -459,7 +459,36 @@ class Game {
     r.endFrame();
   }
 
+  /**
+   * A small contact shadow under an entity.
+   *
+   * Grounding, not lighting: a flat dark ellipse a touch narrower than the body, drawn on
+   * the decal layer so it can never sit over a mechanic (R-ROM-004) and never competes with
+   * the outline families that carry allegiance (GDD 18.5). Deliberately subtle — the game is
+   * read by silhouette and outline colour, and a heavy shadow muddies both.
+   */
+  #renderShadow(x, y, radius, { alpha = 0.28 } = {}) {
+    this.renderer.drawEllipse(x, y + radius * 0.72, radius * 0.85, radius * 0.4, '#05050a', {
+      layer: LAYER_ORDER.FLOOR_DECAL,
+      alpha,
+    });
+  }
+
+  /** Spent-projectile marks: where every shot this room has seen came to rest. */
+  #renderSpentMarks(room) {
+    const marks = room.spentMarks;
+    if (!marks || marks.length === 0) return;
+    for (const m of marks) {
+      // Hostile and friendly marks are tinted apart, so a cleared room reads as a record of
+      // who was shooting from where rather than as undifferentiated grime.
+      this.renderer.drawEllipse(m.x, m.y, m.size, m.size * 0.55,
+        m.hostile ? '#4a1c1c' : '#1c2a3a',
+        { layer: LAYER_ORDER.FLOOR_DECAL, alpha: 0.4 });
+    }
+  }
+
   #renderDecorations(room) {
+    this.#renderSpentMarks(room);
     for (const deco of room.decorations) {
       // Floor decals only; GDD R-ROM-004 forbids decoration obscuring mechanics,
       // so these are flat, dim, and never above the entity layer.
@@ -578,6 +607,7 @@ class Game {
       if (enemy.dead) continue;
       if (enemy.cloaked) continue;
       const variant = enemy.variant;
+      this.#renderShadow(enemy.x, enemy.y, enemy.radius);
       this.renderer.drawSprite(enemy.def.spriteId, enemy.x, enemy.y, {
         // Hostile outline family, always. GDD 18.5 makes this the single signal for
         // allegiance, so it is never conditional on state or palette.
@@ -630,13 +660,21 @@ class Game {
     this.runtime.projectiles.pool.forEach((p) => {
       if (p.__dead) return;
       const hostile = p.owner !== 'PLAYER';
-      // Hostile fire is drawn slightly larger with the hostile outline family, so it
-      // stays the most readable thing on screen no matter how busy the build gets
-      // (GDD 2.9 readable chaos, R-ART-003).
-      this.renderer.drawSprite(p.spriteId || 'prj_keycap', p.x, p.y, {
+      const fall = p.fall || 0;
+      // The shadow stays on the ground while the sprite arcs down toward it, which is what
+      // sells the fall as gravity rather than as a fade. It also tightens as the shot lands,
+      // so the two meet.
+      this.#renderShadow(p.x, p.y, (p.radius ?? 0.22) * (1 - fall * 0.35), {
+        alpha: 0.18 + fall * 0.16,
+      });
+      // Fall phase: drop toward the floor and shrink over the last fraction of flight, so a
+      // shot visibly lands instead of blinking out. Purely visual — the projectile's
+      // collision position is unchanged (see projectile.js).
+      this.renderer.drawSprite(p.spriteId || 'prj_keycap', p.x, p.y + fall * fall * 0.45, {
         outline: hostile ? 'HOSTILE' : 'FRIENDLY',
         layer: LAYER_ORDER.PROJECTILE,
         scale: hostile ? 3 : 2,
+        alpha: 1 - fall * 0.25,
       });
     });
   }
@@ -679,6 +717,7 @@ class Game {
       });
       return;
     }
+    this.#renderShadow(player.x, player.y, player.radius);
     const spriteId = PLAYER_SPRITE_BY_FACING[player.facing] || 'player_idle_south';
     const moving = Math.abs(player.velocity.x) + Math.abs(player.velocity.y) > 0.3;
     const frame = moving ? Math.floor(this.fx.walkPhase * 2.2) % 2 : 0;

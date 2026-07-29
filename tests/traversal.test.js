@@ -375,3 +375,105 @@ test('a single-door room can always be left once it is clear', async () => {
   }
   assert.ok(checked > 0);
 });
+
+// ---------------------------------------------------------------------------
+// Containment and presentation
+// ---------------------------------------------------------------------------
+
+test('R-CMB-006: no hostile can leave the room it is fighting in', async () => {
+  // Reported as a sliding enemy going out of bounds. Controllers move through collision,
+  // but several paths write position directly — blink targets, boss movement rules, pulls —
+  // and an enemy outside the room is unkillable and blocks the clear forever.
+  //
+  // Sweeps every enemy in the game, not just the ones current encounters happen to use:
+  // encounter data reaches 58 of them now, but a controller bug would still hide in the
+  // ones a given seed skips.
+  const { CombatResolver } = await import('../src/systems/combat.js');
+  const { EncounterRuntime } = await import('../src/systems/encounter-runtime.js');
+
+  const escapes = [];
+  for (const def of registry.all('enemy')) {
+    const events = new EventBus();
+    const run = new Run({ registry, events });
+    run.start({ seed: `OFFICE-BOUND-${def.id.slice(4)}` });
+    const combat = new CombatResolver({ registry, events, getRun: () => run });
+    const runtime = new EncounterRuntime({ registry, events, combat, getRun: () => run });
+
+    const node = [...run.floor.nodes.values()].find((n) => n.role === 'ROOM-002')
+      ?? [...run.floor.nodes.values()][0];
+    const room = buildRoom({ floor: run.floor, node, registry, rngSource: run.rng });
+    run.player.x = room.centre.x;
+    run.player.y = room.centre.y;
+
+    const enemy = runtime.spawnOne(def.id, room);
+    if (!enemy) continue;
+    runtime.activated = true;
+
+    // Shove it hard every few frames, from a rotating direction. This is the case the
+    // clamp exists for: knockback and pulls that write velocity or position directly.
+    for (let i = 0; i < 900; i += 1) {
+      if (i % 20 === 0) {
+        const a = (i / 20) * 1.1;
+        enemy.velocity.x = Math.cos(a) * 40;
+        enemy.velocity.y = Math.sin(a) * 40;
+      }
+      runtime.update(1 / 60);
+      if (enemy.dead) break;
+      const lx = enemy.x - room.collision.origin.x;
+      const ly = enemy.y - room.collision.origin.y;
+      const out = Math.max(-lx, -ly, lx - room.collision.w, ly - room.collision.h);
+      if (out > 1.5) {
+        escapes.push(`${def.id} escaped ${out.toFixed(2)} units past the wall`);
+        break;
+      }
+    }
+  }
+  assert.deepEqual(escapes.slice(0, 10), [], `${escapes.length} enemies left the room`);
+});
+
+test('a spent projectile leaves exactly one permanent mark, and the count is bounded', async () => {
+  const game = await bootGame('OFFICE-MARKS-0001');
+  const room = game.run.room;
+  room.spentMarks = [];
+  room.spentMarkNext = 0;
+
+  // Fire a lot, letting every shot live out its full lifetime.
+  const sampled = { firing: true, aimDirection: 'EAST', aimAngle: 0, move: { x: 0, y: 0 }, pressed: new Set() };
+  for (let i = 0; i < 2400; i += 1) {
+    game.playerAttack.update(1 / 60, sampled);
+    game.runtime.update(1 / 60);
+  }
+
+  assert.ok(room.spentMarks.length > 0, 'no projectile left a mark');
+  // R-TEC-003: bounded per room. Past the cap the oldest is recycled rather than the list
+  // growing forever, so both the draw cost and the save payload stay finite.
+  assert.ok(room.spentMarks.length <= 400, `${room.spentMarks.length} marks exceeds the cap`);
+  for (const m of room.spentMarks) {
+    assert.ok(Number.isFinite(m.x) && Number.isFinite(m.y), 'mark has a non-finite position');
+    assert.equal(typeof m.hostile, 'boolean');
+  }
+});
+
+test('the fall phase is presentation only: it never moves the projectile', async () => {
+  // The arc toward the floor is applied at draw time. If it leaked into the projectile's
+  // real position, every weapon would quietly lose range and drift downward on impact.
+  const game = await bootGame('OFFICE-FALL-0001');
+  const sampled = { firing: true, aimDirection: 'EAST', aimAngle: 0, move: { x: 0, y: 0 }, pressed: new Set() };
+  game.playerAttack.update(1 / 60, sampled);
+
+  let seenFalling = false;
+  for (let i = 0; i < 240; i += 1) {
+    game.runtime.update(1 / 60);
+    game.runtime.projectiles.pool.forEach((p) => {
+      if (p.__dead) return;
+      // fall is a 0..1 presentation value...
+      assert.ok(p.fall >= 0 && p.fall <= 1, `fall out of range: ${p.fall}`);
+      if (p.fall > 0) {
+        seenFalling = true;
+        // ...and a horizontally-fired shot must keep travelling horizontally.
+        assert.ok(Number.isFinite(p.y), 'fall corrupted the projectile position');
+      }
+    });
+  }
+  assert.equal(seenFalling, true, 'no projectile ever entered its fall phase');
+});

@@ -13,6 +13,14 @@ import { ALLEGIANCE, BUDGETS, LAYER, OUTLINE_BY_ALLEGIANCE } from '../core/const
 import { Pool } from '../core/pool.js';
 
 /** On-impact actions from GDD 6.3. */
+/**
+ * How long a projectile spends visibly falling before it expires.
+ *
+ * Short enough that it reads as the shot running out of energy rather than as a separate
+ * arc, long enough to see at 60fps. Presentation only.
+ */
+const FALL_SECONDS = 0.22;
+
 export const IMPACT_ACTION = Object.freeze({
   DESTROY: 'DESTROY',
   STICK: 'STICK',
@@ -46,6 +54,8 @@ function makeProjectile() {
     // Lifetime
     lifetime: 0,
     maxLifetime: 0,
+    /** 0..1 over the final moments of flight. Presentation only. */
+    fall: 0,
     // Collision
     collisionMask: 0,
     // Behaviour counters
@@ -96,7 +106,7 @@ function resetProjectile(p) {
   p.radius = 0.22; p.size = 1;
   p.damage = 0; p.damageTags = null;
   p.critChance = 0; p.critMultiplier = 2; p.armorPierceFraction = 0; p.knockback = 0;
-  p.lifetime = 0; p.maxLifetime = 0;
+  p.lifetime = 0; p.maxLifetime = 0; p.fall = 0;
   p.collisionMask = 0;
   p.pierce = 0; p.bounce = 0;
   p.statusPayload = null;
@@ -171,6 +181,15 @@ export class ProjectileSystem {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.lifetime += dt;
+      // Fall phase. Over the last FALL_SECONDS of its life a projectile arcs toward the
+      // floor and shrinks, so it visibly *lands* instead of blinking out of existence.
+      // `fall` is 0..1 and purely presentational — collision and damage are unchanged,
+      // because a shot that stopped hurting before it expired would be a stealth nerf to
+      // every weapon in the game.
+      if (p.maxLifetime > 0) {
+        const left = p.maxLifetime - p.lifetime;
+        p.fall = left < FALL_SECONDS ? Math.min(1, 1 - left / FALL_SECONDS) : 0;
+      }
       if (p.maxLifetime > 0 && p.lifetime >= p.maxLifetime) {
         if (p.onImpact === IMPACT_ACTION.RETURN && !p.returning) {
           // ITM-021 Backspace: reverse at the range limit rather than expiring.

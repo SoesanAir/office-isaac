@@ -333,11 +333,13 @@ export function departmentCoreSet(spec) {
     }),
     t({
       id: `TPL-${slug}_HALLWAY_1X1_B`,
-      roles: [ROOM_ROLE.HALLWAY, 'HALLWAY', 'TINY', 'CORRIDOR'],
+      roles: [...HALL_ROLES, 'CORRIDOR'],
       tiny: true,
       interior: carve([[0, 4, 21, 3]]),
-      // No encounter tags: a quiet corridor between fights is a beat, not a gap.
-      encounterTags: [],
+      // Combat-capable, unlike the cross corridor above. Both hallways being quiet left
+      // long stretches of a floor with nothing in them, which reads as unfinished rather
+      // than as pacing. A three-tile-wide corridor is a legitimate small fight.
+      encounterTags: ['TINY', 'HALLWAY', 'TIGHT_CORRIDOR_ONLY'],
       objectAnchors: scatter([[6, 5, 0.4], [15, 5, 0.4]]),
       vignette: vignettes.hallAlt ?? vignettes.hall,
       weight: 1.6,

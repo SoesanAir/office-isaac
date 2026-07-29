@@ -166,11 +166,14 @@ export function isCompatible(encounter, { room, template, depth, department, reg
  * @param {object} args.floorDef
  * @param {object} args.registry
  * @param {import('../core/rng.js').RngSource} args.rngSource
- * @param {number} [args.emptyChance] probability the room is deliberately empty
+ * @param {number} [args.emptyChance] probability the room is deliberately empty.
+ *   Lowered from 0.16 to 0.06: GDD 3.2 wants quiet beats, but that roll compounded with
+ *   rooms whose templates declare no encounter tags at all, and the combined effect was
+ *   too many empty rooms in a row to read as deliberate pacing.
  * @returns {{encounter: object|null, budget: number, reason?: string}}
  */
 export function selectEncounter({
-  node, template, floorDef, registry, rngSource, emptyChance = 0.16,
+  node, template, floorDef, registry, rngSource, emptyChance = 0.06,
 }) {
   const depth = floorDef.depth;
   const department = floorDef.departmentTag;

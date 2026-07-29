@@ -23,15 +23,26 @@ import {
   ALLEGIANCE, LAYER, DAMAGE_TAG, SPAWN_ZONE, BUDGETS, STATUS,
 } from '../core/constants.js';
 import { EVENTS } from '../core/events.js';
-import { distance, pointSegmentDistance, normalizeInto, clamp } from '../core/math.js';
+import { distance, pointSegmentDistance, normalizeInto, clamp, damp } from '../core/math.js';
 import { StatusContainer } from '../entities/status.js';
 import { ProjectileSystem, IMPACT_ACTION } from '../entities/projectile.js';
 import {
   getController, getAttackModule, getBehaviorModule, AI_STATE,
 } from '../entities/enemy-controllers.js';
-import { projectileHitsWorld, bounceProjectile, resolveOverlap, moveWithCollision } from './physics.js';
+import {
+  projectileHitsWorld, bounceProjectile, resolveOverlap, moveWithCollision, clampToRoom,
+} from './physics.js';
 import { selectEncounter, resolveSpawns, waveCount } from './encounter-select.js';
 import { BossRuntime } from './boss-runtime.js';
+
+/**
+ * Maximum spent-projectile marks kept per room.
+ *
+ * R-TEC-003 bounds per-room effects. Four hundred is generous — a long fight with a
+ * multiplied weapon might produce a few hundred — while still being a flat, finite cost to
+ * draw and to persist.
+ */
+const SPENT_MARK_CAP = 400;
 
 /** How long a spawned-but-staged enemy stays inert. GDD 6.1's telegraph grace. */
 const STAGE_FADE_SECONDS = 0.35;
@@ -112,6 +123,18 @@ export class EncounterRuntime {
       if (enemy) spawned += 1;
     }
     return spawned;
+  }
+
+  /**
+   * Spawn one enemy by id, outside any encounter.
+   *
+   * Test and debug seam. Encounter data only covers Open Office and IT so far, so this is
+   * the only way to exercise the other forty-six enemies' movement against real geometry —
+   * which is how the out-of-bounds sweep in tests/bounds.test.js reaches all of them.
+   */
+  spawnOne(defId, roomInstance, { variantId = null, at = null, zone = SPAWN_ZONE.GROUND_MELEE } = {}) {
+    this.currentRoom = roomInstance;
+    return this.#instantiate(defId, variantId, { zone, roomInstance, staged: false, at });
   }
 
   /**
@@ -383,6 +406,23 @@ export class EncounterRuntime {
     for (const enemy of this.hostiles) {
       if (enemy.dead) continue;
       if (enemy.hitFlash > 0) enemy.hitFlash -= dt;
+
+      // Integrate any pushed velocity, then contain the body.
+      //
+      // combat.js adds knockback to `enemy.velocity`, and nothing ever read it — enemy
+      // knockback from that path was silently dropped. Routing it through
+      // moveWithCollision makes it work AND keeps it inside the room.
+      //
+      // clampToRoom afterwards is defence in depth. Controllers move through collision, but
+      // a few paths write position directly (blink targets, boss movement rules, conveyor
+      // and pull effects), and an enemy that slides out of the room is unkillable and can
+      // block a clear forever (R-CMB-006).
+      if (enemy.velocity && (enemy.velocity.x !== 0 || enemy.velocity.y !== 0)) {
+        moveWithCollision(enemy, enemy.velocity.x * dt, enemy.velocity.y * dt, this.currentRoom.collision);
+        enemy.velocity.x = damp(enemy.velocity.x, 0, 12, dt);
+        enemy.velocity.y = damp(enemy.velocity.y, 0, 12, dt);
+      }
+      clampToRoom(enemy, this.currentRoom.collision);
       this.combat.tickStatuses(enemy, dt, false);
 
       // Staged enemies are visible but inert: the player gets to read the room
@@ -553,7 +593,13 @@ export class EncounterRuntime {
       }
     });
 
-    this.projectiles.sweep();
+    // Every projectile that leaves play drops a permanent mark where it fell.
+    //
+    // The room keeps them for as long as the floor lives, so a cleared room shows the
+    // shape of the fight that happened in it. Bounded per R-TEC-003: past the cap the
+    // oldest mark is recycled rather than the list growing without limit, which keeps
+    // both the draw cost and the save payload finite.
+    this.projectiles.sweep((p) => this.#dropSpentMark(p));
   }
 
   /** Trail hazards and impact splits fire when a projectile ends its life. */
@@ -654,6 +700,34 @@ export class EncounterRuntime {
     }
     if (enemy.health <= 0 && !enemy.dead) this.#kill(enemy, 'DAMAGE');
     return result;
+  }
+
+  /**
+   * Record where a spent projectile came to rest.
+   *
+   * Deliberately not an entity: a mark has no collision, no damage, and no update. It is a
+   * position and a tint in a ring buffer on the room, drawn under everything on the decal
+   * layer, so hundreds of them cost one pass and never obscure a mechanic (R-ROM-004).
+   */
+  #dropSpentMark(p) {
+    const room = this.currentRoom;
+    if (!room || !p) return;
+    if (!room.spentMarks) { room.spentMarks = []; room.spentMarkNext = 0; }
+    const mark = {
+      x: p.x,
+      y: p.y,
+      hostile: p.owner !== ALLEGIANCE.PLAYER,
+      // A little variety so a wall the player emptied a magazine into does not read as one
+      // solid block of identical dots.
+      size: 0.16 + (p.radius ?? 0.22) * 0.35,
+      angle: Math.atan2(p.vy || 0, p.vx || 1),
+    };
+    if (room.spentMarks.length < SPENT_MARK_CAP) {
+      room.spentMarks.push(mark);
+      return;
+    }
+    room.spentMarks[room.spentMarkNext] = mark;
+    room.spentMarkNext = (room.spentMarkNext + 1) % SPENT_MARK_CAP;
   }
 
   #kill(enemy, reason) {

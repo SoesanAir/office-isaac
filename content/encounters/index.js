@@ -9,7 +9,9 @@
  */
 
 import openOfficeIt from './open-office-it.js';
+import departments from './departments.js';
 
 export default [
   ...openOfficeIt,
+  ...departments,
 ];
