@@ -2226,6 +2226,33 @@ const bossPack = [
   }),
 ];
 
+/**
+ * Templates whose architecture is the same on every floor of the building.
+ *
+ * A supply closet is a supply closet in IT and in Legal; so is a shop, a break room, a
+ * maintenance crawlspace, and every one-off special. The GDD says so structurally — each
+ * department declares a `TPL_SHARED_SERVICE` pool alongside its own core and special
+ * pools (see content/departments/departments.js).
+ *
+ * So rather than authoring thirteen near-identical supply closets, these packs also carry
+ * the SERVICE_SHARED department tag and the template index treats that tag as matching
+ * every department. The department-specific packs — start, normal, hallway, large, boss —
+ * deliberately do NOT get it: those are where a department's identity lives (R-DPT-005),
+ * and Open Office's cubicle farms have no business appearing on the Board floor.
+ */
+const SHARED_SERVICE_PACKS = [
+  ...supplyPack,
+  ...shopPack,
+  ...maintPack,
+  ...challengePack,
+  ...specialPack,
+  ...storyPack,
+];
+
+for (const tpl of SHARED_SERVICE_PACKS) {
+  if (!tpl.departmentTags.includes('SERVICE_SHARED')) tpl.departmentTags.push('SERVICE_SHARED');
+}
+
 export default [
   ...startPack,
   ...normalPack,

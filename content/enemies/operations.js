@@ -397,7 +397,7 @@ const enemies = [
       damageTags: ['HAZARD'],
       // D.2's variant note says even the elite "cannot fully seal all exits", so the
       // base unit places a bounded number of zones and never covers an exit.
-      params: { hazardId: 'HAZ-RED_TAPE_COMPLIANCE_BAND', count: 2, seconds: 3.5, preserveExits: true },
+      params: { hazardId: 'HAZ-REDTAPE_COMPLIANCE_BAND', count: 2, seconds: 3.5, preserveExits: true },
     }],
     roomRequirements: ['COMBAT_CAPABLE'],
     prohibitedRoomTags: ['TINY'],

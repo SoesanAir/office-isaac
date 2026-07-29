@@ -333,7 +333,7 @@ registerBossPattern('SHOCK_LINE', {
     for (let i = 0; i < lines; i += 1) {
       const at = ctx.room?.randomWalkablePoint?.(ctx.rng) || { x: boss.x, y: boss.y };
       ctx.spawnHazardPatch?.({
-        hazardId: params?.hazardId ?? 'HAZ-ELECTRICITY_SHOCK_LANE',
+        hazardId: params?.hazardId ?? 'HAZ-ELEC_SHOCK_LANE',
         x: at.x,
         y: at.y,
         w: params?.length ?? 8,
@@ -360,7 +360,7 @@ registerBossPattern('CROSS_LANES', {
     lanes.forEach((lane, i) => {
       if (clear.has(i)) return;
       ctx.spawnHazardPatch?.({
-        hazardId: params?.hazardId ?? 'HAZ-RED_TAPE_COMPLIANCE_BAND',
+        hazardId: params?.hazardId ?? 'HAZ-REDTAPE_COMPLIANCE_BAND',
         x: lane.x,
         y: lane.y,
         w: lane.w,

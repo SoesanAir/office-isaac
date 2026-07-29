@@ -139,7 +139,12 @@ test('combat rooms are populated, with a deliberate minority left empty', () => 
   // Read what the Run actually assigned during generation (GDD 11.4 step 11) rather
   // than re-running selection. Re-selecting would advance the ENCOUNTER stream a
   // second time and measure a floor the player will never see.
-  for (let s = 0; s < 10; s += 1) {
+  // Twelve seeds rather than ten. Once the department filter started working, an Open
+  // Office floor draws from its own pool plus shared service rooms instead of from all 273
+  // templates, so the same ten seeds yielded slightly fewer combat rooms. Widening the
+  // sample keeps the intent (enough rooms for the ratios below to mean something) rather
+  // than lowering the bar to match.
+  for (let s = 0; s < 12; s += 1) {
     const run = makeRun(`OFFICE-POPT${String(s).padStart(4, '0')}`);
     for (const node of run.floor.nodes.values()) {
       if (NON_HOSTILE_ROLES.has(node.role)) continue;

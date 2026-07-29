@@ -176,7 +176,7 @@ export class TemplateIndex {
    */
   candidates(query) {
     const out = [];
-    const pool = query.department ? (this.byDepartment.get(query.department) || []) : this.all;
+    const pool = query.department ? this.forDepartment(query.department) : this.all;
     for (const tpl of pool) {
       if (query.depth !== undefined && tpl.minDepth > query.depth) continue;
       if (query.sizeClass && tpl.sizeClass !== query.sizeClass) continue;
@@ -196,6 +196,22 @@ export class TemplateIndex {
       out.push(tpl);
     }
     return out;
+  }
+
+  /**
+   * Templates a department may draw from: its own, plus the shared service set.
+   *
+   * GDD 12.2 and every department's `roomTemplatePools` list a `TPL_SHARED_SERVICE` pool
+   * alongside the department's own. A supply closet, a shop, and a maintenance crawlspace
+   * are the same room on every floor, so those templates carry the SERVICE_SHARED
+   * department tag rather than being duplicated thirteen times. A department's *identity*
+   * rooms — start, normal, hallway, boss — are never shared (R-DPT-005).
+   */
+  forDepartment(tag) {
+    const own = this.byDepartment.get(tag) || [];
+    const shared = this.byDepartment.get('SERVICE_SHARED') || [];
+    if (tag === 'SERVICE_SHARED') return shared;
+    return own.concat(shared);
   }
 
   /** Shape ids available for a size class in a department, for growth planning. */
