@@ -24,6 +24,7 @@ import { RoomController, ROOM_STATE } from './systems/room-state.js';
 import { UnlockService } from './systems/unlocks.js';
 import { SaveService } from './systems/save.js';
 import { AudioEngine } from './audio/engine.js';
+import { MenuSystem, SCREEN } from './ui/menus.js';
 import { EncounterRuntime } from './systems/encounter-runtime.js';
 import { AttackGraphResolver } from './systems/attack-graph.js';
 import { PlayerAttackSystem } from './systems/player-attack.js';
@@ -130,9 +131,26 @@ class Game {
       loc: (key) => this.loc(key),
     });
 
+    this.menus = new MenuSystem({
+      renderer: this.renderer,
+      registry: this.registry,
+      settings: this.settings,
+      profile: this.profileSave,
+      save: this.save,
+      loc: this.loc,
+      actions: {
+        newRun: () => this.beginRun({}),
+        continueRun: () => this.beginRun({ resume: true }),
+        restart: () => this.beginRun({ seed: this.run.seed, mode: this.run.mode }),
+        quitToTitle: () => this.toTitle(),
+        settingsChanged: () => this.applyDisplaySettings(),
+      },
+    });
+
     this.#installSystems();
     this.#installPersistence();
     this.#installAudio();
+    this.applyDisplaySettings();
     this.#installListeners();
     this.loop = new GameLoop((dt) => this.update(dt), (alpha, frameDt) => this.render(alpha, frameDt));
   }
@@ -493,6 +511,17 @@ class Game {
   update(dt) {
     if (this.fatalError) return;
     this.run.tick(dt);
+    // Menus take input before the simulation and suspend it while open.
+    //
+    // Gated here rather than inside each phase: a phase that forgot the check would keep
+    // running under the pause screen, and "the game kept playing while I was in Options" is
+    // the exact bug this shape makes impossible.
+    const menuInput = this.input.sample({ menuOnly: true });
+    if (this.menus.update(dt, menuInput)) {
+      if (this.audio.ready) this.audio.suspend();
+      return;
+    }
+    if (this.audio.ready) this.audio.resume();
     this.scheduler.tick(dt, this);
     this.run.player.tick(dt);
     this.camera.update(dt, this.run.player);
@@ -520,6 +549,63 @@ class Game {
     clampToRoom(player, room.collision);
     if (input.aimDirection) player.facing = input.aimDirection;
     else if (dx !== 0 || dy !== 0) player.facing = facingFromVector(dx, dy);
+  }
+
+  /**
+   * Push the saved settings into the systems that own display state.
+   *
+   * The renderer and camera each keep their own settings — the renderer because a grayscale
+   * change has to invalidate baked sprites and the room cache, the camera because shake is
+   * a scalar it applies per frame. Nothing read the SAVED settings, so every accessibility
+   * toggle in Options changed a value on disk and nothing on screen.
+   *
+   * Called on boot and whenever a setting changes, so the effect is immediate rather than
+   * waiting for the next room.
+   */
+  applyDisplaySettings() {
+    const s = this.settings;
+    this.renderer.setSetting('grayscale', Boolean(s.grayscale));
+    this.renderer.setSetting('highContrast', Boolean(s.highContrast));
+    // Reduced effects thins particles; reduced motion calms flashes and shake. They are
+    // separate settings because they help different people: one is about visual noise, the
+    // other about vestibular comfort.
+    this.renderer.setSetting('particleDensity', s.reducedEffects ? 0.3 : 1);
+    this.renderer.setSetting('flashIntensity', s.reducedMotion ? 0.25 : 1);
+    this.camera.setShakeScale?.(s.reducedMotion ? 0 : 1);
+    this.audio.applySettings();
+  }
+
+  /**
+   * Start or resume a run from the menus.
+   *
+   * The selected employee profile and challenge come from the title screen, and unlock flags
+   * from the profile save — all three have to be settled before generation, since R-PRG-002
+   * forbids changing a run once it is in progress.
+   */
+  beginRun({ seed, mode, resume = false } = {}) {
+    const challengeId = this.profileSave.selectedChallenge;
+    const challenge = challengeId ? this.registry.get('challenge', challengeId) : null;
+
+    this.menus.closeAll();
+    this.menus.hasRun = true;
+    this.run.start({
+      unlockFlags: [...this.unlocks.activeFlags()],
+      profileId: challenge?.profile ?? this.profileSave.selectedProfile ?? 'PRF-001',
+      routeId: challenge?.route ?? 'ROUTE-BASE',
+      // GDD 21.3: a challenge run is its own seed mode, and only enables its own unlock.
+      ...(challenge ? { mode: 'CHALLENGE' } : {}),
+      ...(seed ? { seed } : {}),
+      ...(mode ? { mode } : {}),
+    });
+    if (!resume) this.save.clearRun();
+    this.combat.installGuards?.();
+  }
+
+  /** Back to the title screen. Does not touch the saved run: Continue may still want it. */
+  toTitle() {
+    this.menus.closeAll();
+    this.menus.hasRun = false;
+    this.menus.open(SCREEN.TITLE);
   }
 
   /** Run one door-traversal pass. Test seam: the loop is not stepped in tests. */
@@ -596,6 +682,7 @@ class Game {
     }
 
     this.hud.draw({ player, run: this.run });
+    this.menus.draw({ results: this.runResults });
     if (this.debug.visible) this.#renderDebug();
     r.endFrame();
   }

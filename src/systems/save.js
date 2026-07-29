@@ -97,8 +97,12 @@ export function emptySettings() {
     // Accessibility defaults are ON where they cost nothing and OFF where they change the
     // game's look, per GDD 17.6 — a first-time player should not have to opt into legible.
     grayscale: false,
+    /** Stronger outlines on player, hostile fire, pickups and hazards (GDD 17.6). */
+    highContrast: false,
     reducedMotion: false,
     reducedEffects: false,
+    /** HUD and menu text multiplier, 0.8 to 1.6 (GDD 17.6 "scalable HUD and text"). */
+    textScale: 1,
     captions: true,
     masterVolume: 0.8,
     musicVolume: 0.6,
