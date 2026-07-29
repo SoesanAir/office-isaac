@@ -90,14 +90,43 @@ synergies from GDD 8.5. NO_EFFECT stays a valid, intended outcome.
 
 Requirements: R-WPN-001..006, R-ITM-006, 7.2-7.5, 8.5.
 
-## Phase 4 — Items, loot service, economy, consumables — **TODO**
+## Phase 4 — Items, loot service, economy, consumables — **DONE** (art pending)
 
 60 passives, 15 actives, 18 Action Cards, 14 Supplements, 18 Desk Charms,
-4 Transformations. Loot service: 10 pools, GDD 8.4's weighted algorithm, quality
-gates, the 0.10% early jackpot, seen decay, rerolls, set drops. Shop, containers,
-Toner Charges, resource-starvation protection.
+4 Transformations — every class at its GDD §24 seed target, every magnitude
+quoted from Appendix C.1–C.7. 115 effect hooks. Loot service and the ten pools
+landed in Phase 3's tail; the Office Supply Shop (GDD 9.3 bands, 9.4 purchase
+contract) landed here. 41 item tests in `tests/items.test.js`.
 
 Requirements: R-ITM-001..008, R-CON-001..005, R-ECO-001..005, 8.3-8.7, 9.
+
+**Still open:** collectible sprites for the five non-passive classes; Toner
+Charge placement and blast-wall opening (R-ECO-003); container/chest contents.
+
+### What the tests caught that review did not
+
+Recording these because each one is a class of bug worth watching for in later
+phases, not just a fixed defect:
+
+1. **Unreachable content that still shows in the collection.** TRN-004 required
+   three MANAGEMENT-tag items and no passive carried the tag. Nothing errored —
+   the transformation was simply impossible. Any `TAG_COUNT` or `ANY_N_OF`
+   condition needs a test proving its candidate set exists.
+2. **Two conventions colliding on one field name.** Appendix C.5 states a
+   permanent stat change as `+0.06`; Appendix C.4 states a temporary one as the
+   multiplier `1.35`. Both land on keys ending in `Mul`. Treating the first as a
+   multiplier made Heavy Dose — an item whose entire text is "hits harder" — cut
+   damage by 94%. When the GDD states two magnitudes in different units, the
+   code has to say which is which.
+3. **A cache key that omitted a new input.** The attack graph memoises per build
+   signature; consumable stat changes were not in it, so a Supplement or a
+   room-long buff could be served a stale plan. Anything that can change the
+   resolved plan must be in `AttackGraphResolver.signature`.
+4. **A method invented rather than looked up.** SUP-010 called
+   `Health.setComposure`, which does not exist. `Health.clampNonLethal` already
+   meant exactly what Appendix C.5 asks for. Writing health directly would also
+   have skipped buffers and on-damaged hooks, so a Supplement would silently
+   have bypassed Caffeine.
 
 ## Phase 5 — Enemies: 58 definitions, variants, encounters — **TODO**
 
