@@ -58,6 +58,67 @@ const PAD = 28;
  */
 const item = (kind, label, spec = {}) => ({ kind, label, ...spec });
 
+/**
+ * Which actions the Controls screen offers, in the order GDD 4.1 lists them.
+ *
+ * CONFIRM and CANCEL are deliberately absent. They are the keys the menus themselves run on,
+ * so binding them from inside a menu is the one rebind that can remove the player's way out
+ * of the screen they are standing in. Everything reachable during play is here.
+ */
+const BINDABLE = Object.freeze([
+  [ACTION.MOVE_UP, 'Move up'],
+  [ACTION.MOVE_DOWN, 'Move down'],
+  [ACTION.MOVE_LEFT, 'Move left'],
+  [ACTION.MOVE_RIGHT, 'Move right'],
+  [ACTION.AIM_UP, 'Fire up'],
+  [ACTION.AIM_DOWN, 'Fire down'],
+  [ACTION.AIM_LEFT, 'Fire left'],
+  [ACTION.AIM_RIGHT, 'Fire right'],
+  [ACTION.USE_ACTIVE, 'Active item'],
+  [ACTION.USE_POCKET, 'Pocket item'],
+  [ACTION.INTERACT, 'Interact'],
+  [ACTION.DROP, 'Drop weapon'],
+  [ACTION.MAP, 'Map'],
+  [ACTION.PAUSE, 'Pause'],
+]);
+
+const LABEL_FOR_ACTION = Object.fromEntries(BINDABLE);
+
+/** A KeyboardEvent.code turned into what is printed on the key. */
+function keyLabel(code) {
+  if (!code) return 'unbound';
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Numpad')) return `Num ${code.slice(6)}`;
+  if (code.startsWith('Arrow')) return `${code.slice(5)} arrow`;
+  return {
+    Space: 'Space', Enter: 'Enter', Tab: 'Tab', Escape: 'Escape', Backspace: 'Backspace',
+    ControlLeft: 'Left Ctrl', ControlRight: 'Right Ctrl',
+    ShiftLeft: 'Left Shift', ShiftRight: 'Right Shift',
+    AltLeft: 'Left Alt', AltRight: 'Right Alt',
+    Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']',
+    Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backslash: '\\',
+    Backquote: '`', CapsLock: 'Caps Lock',
+  }[code] ?? code;
+}
+
+/**
+ * A standard-mapping gamepad button index turned into a name.
+ *
+ * Face buttons are given by position rather than by letter, because the same index is A on an
+ * Xbox pad and Cross on a PlayStation one, and printing the wrong letter is worse than
+ * printing none.
+ */
+function padLabel(index) {
+  if (index === undefined || index === null) return 'unbound';
+  return {
+    0: 'Bottom face', 1: 'Right face', 2: 'Left face', 3: 'Top face',
+    4: 'Left bumper', 5: 'Right bumper', 6: 'Left trigger', 7: 'Right trigger',
+    8: 'View / Select', 9: 'Menu / Start', 10: 'Left stick', 11: 'Right stick',
+    12: 'D-pad up', 13: 'D-pad down', 14: 'D-pad left', 15: 'D-pad right',
+  }[index] ?? `Button ${index}`;
+}
+
 export class MenuSystem {
   /**
    * @param {object} deps
@@ -69,8 +130,14 @@ export class MenuSystem {
    * @param {(key: string) => string} deps.loc
    * @param {object} deps.actions callbacks the menus invoke: newRun, resume, restart, quitToTitle
    */
-  constructor({ renderer, registry, settings, profile, save, loc, actions = {} }) {
+  constructor({ renderer, registry, settings, profile, save, loc, input = null, actions = {} }) {
     this.renderer = renderer;
+    /** The live InputSystem, so the Controls screen reads and writes real bindings. */
+    this.input = input;
+    /** Which device the Controls screen is editing. */
+    this.controlsDevice = 'KEYBOARD';
+    /** One line of feedback under the Controls list: what was just bound, or what was lost. */
+    this.rebindNote = '';
     this.registry = registry;
     this.settings = settings;
     this.profile = profile;
@@ -111,6 +178,9 @@ export class MenuSystem {
   /** Back one screen. Returns false when there was nothing to close. */
   back() {
     if (this.stack.length === 0) return false;
+    // A capture that outlives its screen would swallow every key with no UI explaining why.
+    if (this.input?.capturing) this.input.cancelCapture();
+    this.rebindNote = '';
     this.stack.pop();
     this.cursor = 0;
     this.scroll = 0;
@@ -220,19 +290,88 @@ export class MenuSystem {
     ];
   }
 
+  /**
+   * Controls, remappable (GDD 17.6).
+   *
+   * Every row reads its key from the live bindings rather than from a written-down list.
+   * The previous version hard-coded the labels, and they had already drifted — it advertised
+   * Interact on F when the default is E — which is worse than no screen at all, because a
+   * player who cannot make the listed key work concludes the game is broken.
+   *
+   * `device` is a CHOICE at the top rather than two separate screens: the action list is the
+   * same for both, and duplicating it would let the two lists disagree.
+   */
   #controlsItems() {
-    // Read-only for now: rebinding needs a key-capture mode the input system already has a
-    // `capturing` flag for, but showing the bindings is what makes the game learnable, and
-    // claiming a rebind UI that does not work would be worse than not offering it.
-    return [
-      item('LABEL', 'Move', { value: 'W A S D' }),
-      item('LABEL', 'Aim and fire', { value: 'Arrow keys' }),
-      item('LABEL', 'Active item', { value: 'E' }),
-      item('LABEL', 'Pocket item', { value: 'Q' }),
-      item('LABEL', 'Interact', { value: 'F' }),
-      item('LABEL', 'Map', { value: 'Tab' }),
-      item('LABEL', 'Pause', { value: 'Escape' }),
+    if (!this.input) {
+      return [item('LABEL', 'Controls unavailable', { value: '' })];
+    }
+    const gamepad = this.controlsDevice === 'GAMEPAD';
+    const out = [
+      item('CHOICE', 'Device', {
+        values: ['KEYBOARD', 'GAMEPAD'],
+        get: () => this.controlsDevice,
+        set: (v) => { this.controlsDevice = v; },
+        display: (v) => (v === 'GAMEPAD' ? 'Controller' : 'Keyboard'),
+      }),
+      item('HEADER', gamepad ? 'Controller buttons' : 'Keyboard keys'),
     ];
+
+    for (const [action, label] of BINDABLE) {
+      const bound = gamepad ? this.input.buttonFor(action) : this.input.codeFor(action);
+      out.push(item('REBIND', label, {
+        action,
+        // An unbound action is stated plainly. It is a legitimate state — displacing a key
+        // leaves its old owner unbound — and hiding it is how a player loses Pause silently.
+        value: bound === undefined
+          ? 'unbound'
+          : (gamepad ? padLabel(bound) : keyLabel(bound)),
+        run: () => this.beginRebind(action),
+      }));
+    }
+
+    out.push(item('HEADER', ''));
+    out.push(item('HOLD', 'Hold to restore defaults', {
+      run: () => {
+        this.input.resetBindings(this.controlsDevice);
+        this.rebindNote = 'Defaults restored.';
+        this.#commitBindings();
+      },
+    }));
+    return out;
+  }
+
+  /**
+   * Enter capture mode for one action.
+   *
+   * The note is set before capture begins so the prompt is on screen for the frame the player
+   * is deciding on, not one frame late.
+   */
+  beginRebind(action) {
+    if (!this.input) return;
+    this.rebindNote = this.controlsDevice === 'GAMEPAD'
+      ? 'Press a controller button. Escape cancels.'
+      : 'Press a key. Escape cancels.';
+    this.input.beginCapture(action, this.controlsDevice, (result) => {
+      if (!result) {
+        this.rebindNote = 'Unchanged.';
+        return;
+      }
+      const label = this.controlsDevice === 'GAMEPAD'
+        ? padLabel(result.button)
+        : keyLabel(result.code);
+      this.rebindNote = result.displaced
+        ? `${label} bound. ${LABEL_FOR_ACTION[result.displaced] ?? result.displaced} is now unbound.`
+        : `${label} bound.`;
+      this.#commitBindings();
+    });
+  }
+
+  /** Bindings live in the settings save domain, so a rebind is written through immediately. */
+  #commitBindings() {
+    if (!this.input || !this.settings) return;
+    this.settings.input = this.input.save();
+    this.save?.saveSettings?.(this.settings);
+    this.actions.settingsChanged?.();
   }
 
   /**
@@ -334,7 +473,7 @@ export class MenuSystem {
     }
 
     if (pressed.has(ACTION.CONFIRM)) {
-      if (active.kind === 'ACTION') active.run?.();
+      if (active.kind === 'ACTION' || active.kind === 'REBIND') active.run?.();
       else if (active.kind === 'TOGGLE') this.#nudge(active, 1);
       else if (active.kind === 'CHOICE') this.#nudge(active, 1);
     }
@@ -422,11 +561,22 @@ export class MenuSystem {
       if (results) this.#drawResults(c, results, scale);
 
       c.textAlign = 'center';
+
+      // What the last rebind did, including anything it unbound. Drawn above the hint and in
+      // a brighter colour, because "Pause is now unbound" is the one message on this screen
+      // the player must not miss.
+      if (this.rebindNote && this.current === SCREEN.CONTROLS) {
+        c.fillStyle = '#e8c246';
+        c.font = `${Math.round(11 * scale)}px "Courier New", monospace`;
+        c.fillText(this.rebindNote, LOGICAL_WIDTH / 2, LOGICAL_HEIGHT - PAD - Math.round(16 * scale));
+      }
+
       c.fillStyle = '#6d6d84';
       c.font = `${Math.round(10 * scale)}px "Courier New", monospace`;
-      const hint = items[this.cursor]?.kind === 'HOLD'
-        ? 'hold Enter to confirm'
-        : 'arrows to move, Enter to select, Esc to go back';
+      let hint = 'arrows to move, Enter to select, Esc to go back';
+      if (this.input?.capturing) hint = 'listening for an input — Esc cancels';
+      else if (items[this.cursor]?.kind === 'HOLD') hint = 'hold Enter to confirm';
+      else if (items[this.cursor]?.kind === 'REBIND') hint = 'Enter to rebind this action';
       c.fillText(hint, LOGICAL_WIDTH / 2, LOGICAL_HEIGHT - PAD);
     });
   }
@@ -446,6 +596,12 @@ export class MenuSystem {
     if (entry.kind === 'SLIDER' || entry.kind === 'CHOICE') {
       const raw = entry.get();
       return entry.display ? entry.display(raw) : String(raw);
+    }
+    if (entry.kind === 'REBIND') {
+      // The row being captured says so in place of its key, so the prompt is where the
+      // player is already looking rather than only at the bottom of the screen.
+      const listening = this.input?.capturing && this.input.captureAction === entry.action;
+      return listening ? 'press a key...' : (entry.value ?? 'unbound');
     }
     if (entry.kind === 'LABEL') return entry.value ?? null;
     return null;

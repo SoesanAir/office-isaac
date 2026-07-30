@@ -116,6 +116,15 @@ export function emptySettings() {
     sfxVolume: 0.9,
     fireMode: 'HOLD',
     mapMode: 'HOLD',
+    /**
+     * Input bindings and device tuning, as produced by `InputSystem.save()`.
+     *
+     * Null means "never customised", which is not the same as "customised back to the
+     * defaults": the difference matters because a future change to DEFAULT_KEYBOARD should
+     * reach a player who never rebound anything, and must not silently overwrite the layout
+     * of a player who did.
+     */
+    input: null,
     language: 'en',
     telemetry: false,
   };

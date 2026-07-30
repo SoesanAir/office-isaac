@@ -13,9 +13,10 @@
 
 import { EventBus, EVENTS, PhaseScheduler, PHASE, LISTENER_PRIORITY } from './core/events.js';
 import { GameLoop } from './core/loop.js';
-import { SIM_DT, LOGICAL_WIDTH, LOGICAL_HEIGHT, DOOR_CLASS, ROOM_ROLE } from './core/constants.js';
+import { SIM_DT, LOGICAL_WIDTH, LOGICAL_HEIGHT, DOOR_CLASS, ROOM_ROLE, TILE } from './core/constants.js';
 import { Camera } from './render/camera.js';
 import { Renderer, LAYER_ORDER } from './render/renderer.js';
+import { getSpriteDef } from './render/sprites.js';
 import { InputSystem, ACTION } from './systems/input.js';
 import { Run, RUN_STATE, doorCost } from './systems/run.js';
 import { moveWithCollision, resolveOverlap, clampToRoom } from './systems/physics.js';
@@ -47,6 +48,24 @@ import './register-all.js';
  * bug waiting to recur.
  */
 export const DOOR_TRIGGER_RADIUS = 1.2;
+
+/**
+ * How many screen pixels one authored pixel of a boss sprite covers.
+ *
+ * Bosses share the enemy render path — BossRuntime pushes the boss into `hostiles` so every
+ * collision, on-hit and draw pass treats it as an enemy with a large radius — but they do not
+ * share the enemy *scale*. An enemy is a 16x16 grid at scale 2, which is one world unit; a
+ * boss body is 2.6 to 5.2 units across, so the same fixed scale would draw the final boss at
+ * a fifth of the hitbox the player is dodging.
+ *
+ * Derived from the authored grid width and the boss's own collision radius rather than tuned
+ * per sprite, so art and collision stay in step by construction: change a boss's radius and
+ * its sprite follows, and a boss authored on a different grid size still fills its body.
+ */
+export function bossSpriteScale(boss) {
+  const grid = getSpriteDef(boss.def?.spriteId)?.width || 24;
+  return Math.max(2, Math.round((boss.radius * 2 * TILE) / grid));
+}
 
 class Game {
   constructor(canvas) {
@@ -138,6 +157,9 @@ class Game {
       profile: this.profileSave,
       save: this.save,
       loc: this.loc,
+      // The live input system, so the Controls screen edits the real bindings rather than a
+      // copy that would have to be synchronised back (GDD 17.6).
+      input: this.input,
       actions: {
         newRun: () => this.beginRun({}),
         continueRun: () => this.beginRun({ resume: true }),
@@ -150,6 +172,9 @@ class Game {
     this.#installSystems();
     this.#installPersistence();
     this.#installAudio();
+    // Saved bindings, before the first frame. GDD 17.6's remapping is only worth anything if
+    // it survives a reload, and the Controls screen writes into this same settings domain.
+    if (this.settings.input) this.input.load(this.settings.input);
     this.applyDisplaySettings();
     this.#installListeners();
     this.loop = new GameLoop((dt) => this.update(dt), (alpha, frameDt) => this.render(alpha, frameDt));
@@ -842,7 +867,9 @@ class Game {
         outline: 'HOSTILE',
         layer: LAYER_ORDER.ENTITY,
         swap: variant?.paletteSwap,
-        scale: variant?.scale ? Math.max(1, Math.round(2 * variant.scale)) : undefined,
+        scale: enemy.isBoss
+          ? bossSpriteScale(enemy)
+          : (variant?.scale ? Math.max(1, Math.round(2 * variant.scale)) : undefined),
         flash: enemy.hitFlash > 0,
         alpha: enemy.staged ? 0.55 : 1,
       });

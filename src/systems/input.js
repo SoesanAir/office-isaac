@@ -150,6 +150,10 @@ export class InputSystem {
     this.gamepadIndex = null;
     /** True while a rebinding UI is capturing, so gameplay ignores input. */
     this.capturing = false;
+    /** The action being rebound, the device it is waiting on, and the completion callback. */
+    this.captureAction = null;
+    this.captureDevice = 'KEYBOARD';
+    this.captureDone = null;
     this._listeners = [];
   }
 
@@ -159,7 +163,14 @@ export class InputSystem {
       // Any key at all counts as the user gesture browsers require before audio may start,
       // even one the game does not bind.
       this.anyInputSeen = true;
-      if (this.capturing) return;
+      if (this.capturing) {
+        // A rebinding UI owns the keyboard. Swallow the key entirely — including the ones
+        // the browser would act on — so pressing Tab to bind it does not also move focus
+        // out of the canvas and strand the player in a capture that can never end.
+        e.preventDefault();
+        this.#captureKey(e.code);
+        return;
+      }
       const action = this.keyboard[e.code];
       // Tab and Space would otherwise scroll or move focus out of the canvas.
       if (action) e.preventDefault();
@@ -224,6 +235,17 @@ export class InputSystem {
    */
   sample(caps = {}) {
     const s = this.state;
+    if (this.capturing) {
+      // No intent at all while a key is being assigned. Otherwise binding "move left" would
+      // also walk the player left behind the menu, and binding Confirm would activate the
+      // very row that opened the capture.
+      this.#pollCaptureButton();
+      s.pressed = new Set();
+      s.held.clear();
+      s.moveX = 0; s.moveY = 0; s.moveMagnitude = 0;
+      s.aimX = 0; s.aimY = 0; s.firing = false;
+      return s;
+    }
     s.pressed = new Set(this.edge);
     this.edge.clear();
     s.held.clear();
@@ -367,12 +389,139 @@ export class InputSystem {
     };
   }
 
-  /** Rebind an action. Returns the previous binding, if any (GDD 17.6). */
+  /**
+   * Rebind an action. Returns what changed, so a UI can report it (GDD 17.6).
+   *
+   * `displaced` is the action that previously owned this key and is now unbound. It is
+   * returned rather than silently swapped: a swap moves a binding the player did not ask to
+   * move, and an unannounced unbind is how someone loses their Pause key without noticing.
+   * The Controls screen shows the displaced row as unbound so the loss is visible.
+   *
+   * @returns {{previousCode: string|undefined, displaced: string|undefined}}
+   */
   rebindKey(code, action) {
-    const previous = Object.entries(this.keyboard).find(([, a]) => a === action)?.[0];
-    if (previous) delete this.keyboard[previous];
+    const previousCode = Object.entries(this.keyboard).find(([, a]) => a === action)?.[0];
+    const displaced = this.keyboard[code];
+    if (previousCode) delete this.keyboard[previousCode];
     this.keyboard[code] = action;
-    return previous;
+    return { previousCode, displaced: displaced === action ? undefined : displaced };
+  }
+
+  /** Rebind a gamepad button index. Same contract as rebindKey (GDD 17.6: controller too). */
+  rebindButton(index, action) {
+    const key = String(index);
+    const previousCode = Object.entries(this.gamepad).find(([, a]) => a === action)?.[0];
+    const displaced = this.gamepad[key];
+    if (previousCode) delete this.gamepad[previousCode];
+    this.gamepad[key] = action;
+    return { previousCode, displaced: displaced === action ? undefined : displaced };
+  }
+
+  /** The key currently bound to an action, or undefined. */
+  codeFor(action) {
+    return Object.entries(this.keyboard).find(([, a]) => a === action)?.[0];
+  }
+
+  /** The gamepad button index currently bound to an action, or undefined. */
+  buttonFor(action) {
+    const found = Object.entries(this.gamepad).find(([, a]) => a === action)?.[0];
+    return found === undefined ? undefined : Number(found);
+  }
+
+  /**
+   * Enter capture mode: the next key or button press binds to `action`.
+   *
+   * While capturing, `sample()` reports no intent at all, so the player cannot walk or fire
+   * with the key they are in the middle of assigning.
+   *
+   * @param {string} action
+   * @param {'KEYBOARD'|'GAMEPAD'} [device]
+   * @param {(result: object) => void} [onDone] called with the rebind result, or null if cancelled
+   */
+  beginCapture(action, device = 'KEYBOARD', onDone = null) {
+    this.capturing = true;
+    this.captureAction = action;
+    this.captureDevice = device;
+    this.captureDone = onDone;
+    // A held key from before capture began must not immediately satisfy it.
+    this.keysDown.clear();
+    this.edge.clear();
+    this.aimStack.length = 0;
+    return this;
+  }
+
+  /** Leave capture mode without binding anything. */
+  cancelCapture() {
+    const done = this.captureDone;
+    this.capturing = false;
+    this.captureAction = null;
+    this.captureDone = null;
+    done?.(null);
+    return this;
+  }
+
+  /**
+   * Bind a captured key.
+   *
+   * Escape always cancels instead of binding. Without that, a player can bind Escape to a
+   * movement action, lose the only key that closes a menu, and have no way back to the
+   * screen that would let them fix it — the binding UI would have removed its own exit.
+   */
+  #captureKey(code) {
+    if (!this.capturing || this.captureDevice !== 'KEYBOARD') return;
+    if (code === 'Escape') {
+      this.cancelCapture();
+      return;
+    }
+    const result = this.rebindKey(code, this.captureAction);
+    const done = this.captureDone;
+    this.capturing = false;
+    this.captureAction = null;
+    this.captureDone = null;
+    done?.({ ...result, code, action: this.keyboard[code] });
+  }
+
+  /**
+   * While capturing on GAMEPAD, watch for the first button press.
+   *
+   * Separate from #readGamepad because that method resolves *bindings* into intent, and during
+   * capture there is no binding to resolve yet — the raw button index is the payload.
+   */
+  #pollCaptureButton() {
+    if (!this.capturing || this.captureDevice !== 'GAMEPAD') return;
+    const pads = globalThis.navigator?.getGamepads?.() ?? [];
+    for (const pad of pads) {
+      if (!pad || !pad.connected) continue;
+      for (let i = 0; i < pad.buttons.length; i += 1) {
+        if (pad.buttons[i]?.pressed) {
+          this.#captureButton(i);
+          return;
+        }
+      }
+    }
+  }
+
+  /** Bind a captured gamepad button. Called from the gamepad poll while capturing. */
+  #captureButton(index) {
+    if (!this.capturing || this.captureDevice !== 'GAMEPAD') return;
+    const result = this.rebindButton(index, this.captureAction);
+    const done = this.captureDone;
+    this.capturing = false;
+    this.captureAction = null;
+    this.captureDone = null;
+    done?.({ ...result, button: index, action: this.gamepad[String(index)] });
+  }
+
+  /**
+   * Restore the shipped bindings for one device.
+   *
+   * Offered because rebinding can leave a layout the player cannot navigate out of — the one
+   * failure this screen can produce that the player cannot fix from inside it.
+   */
+  resetBindings(device = 'KEYBOARD') {
+    if (device === 'GAMEPAD') this.gamepad = { ...DEFAULT_GAMEPAD };
+    else this.keyboard = { ...DEFAULT_KEYBOARD };
+    return this;
   }
 
   /** Serialise bindings and accessibility settings for the settings save. */
