@@ -117,6 +117,7 @@ export class Hud {
     this.#drawHealth(player);
     this.#drawActive(player);
     this.#drawResources(player);
+    this.#drawStatuses(player);
     this.#drawPocketAndCharm(player);
     if (boss) this.#drawBossBar(boss);
     else if (waveObjective) this.#drawWaveBar(waveObjective);
@@ -211,6 +212,52 @@ export class Hud {
   // -------------------------------------------------------------------------
   // Top right: resources, pocket item, desk charm (GDD 17.2)
   // -------------------------------------------------------------------------
+
+  /**
+   * Active status effects (GDD 5.5, 18.4).
+   *
+   * GDD 18.4 ranks active status as tier 2, "mechanic critical" — above identity accessories and
+   * decoration, below only the player outline and damage state. It was nonetheless invisible:
+   * `StatusContainer.describe()` has always returned a HUD-ready list with an icon id per effect,
+   * and nothing ever called it. A player being burned had no way to know why their health was
+   * dropping, which is exactly the tier-2 information this table promises.
+   *
+   * Placed under the active item in the top-left, keeping it in the same column as the other
+   * gameplay-critical readouts rather than opening a new screen region. GDD 17.2 assigns the
+   * top-left to health and the active item and does not mention status, so this extends that
+   * column rather than contradicting the table.
+   *
+   * Each icon carries a depletion arc rather than a number: the exact remaining seconds are not
+   * actionable, but "nearly over" is, and an arc reads at 16px where digits would not.
+   */
+  #drawStatuses(player) {
+    const active = player.status?.describe?.() ?? [];
+    if (active.length === 0) return;
+
+    // Below health and the active item. Derived from the same constants those use, so a change
+    // to either does not silently overlap this row.
+    const y = PAD + ICON + 8 + 20 + 6;
+    const pitch = 18;
+
+    active.forEach((entry, i) => {
+      const x = PAD + i * pitch;
+      this.renderer.drawSprite(entry.iconId, 0, 0, {
+        layer: LAYER_ORDER.HUD,
+        // Screen-space, not world-space: the HUD is drawn in logical pixels, so the sprite is
+        // placed by the raw draw below rather than through the camera.
+        screen: [x, y],
+      });
+      // The depletion arc, drawn under the icon so it never obscures the silhouette that
+      // carries the meaning (R-UIX-005).
+      this.renderer.push(LAYER_ORDER.HUD, (c) => {
+        const frac = Math.max(0, Math.min(1, entry.progress ?? 0));
+        c.fillStyle = '#26263a';
+        c.fillRect(x, y + 16, 16, 2);
+        c.fillStyle = '#c8c8d6';
+        c.fillRect(x, y + 16, Math.round(16 * frac), 2);
+      });
+    });
+  }
 
   #drawResources(player) {
     const res = { credits: player.credits, accessCards: player.accessCards, tonerCharges: player.tonerCharges };

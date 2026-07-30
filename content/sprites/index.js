@@ -9,14 +9,21 @@
  * by domain so several authors can work at once without id collisions: each
  * domain module owns a documented id prefix and nothing else may use it.
  *
+ * The table below is now descriptive rather than aspirational, which it was not before. It
+ * claimed tiles.js owned `pedestal_` and vfx.js owned `prj_` while both actually live in
+ * pickups.js and weapons.js, and it promised `tile_`, `wall_`, `door_`, `fx_` and `map_`
+ * prefixes that nothing defines and nothing asks for — rooms, doors and VFX are drawn
+ * procedurally from geometry characters and canvas primitives, not from sprites. tiles.js and
+ * vfx.js were empty scaffolds standing in for work that turned out not to be needed, so they
+ * are gone. An ownership table that misstates who owns what is how two authors collide on
+ * an id, so it is worth keeping honest.
+ *
  * | module                | owns id prefix                              |
  * |-----------------------|---------------------------------------------|
  * | player.js             | player_                                     |
- * | tiles.js              | tile_, wall_, door_, elevator_, pedestal_   |
- * | pickups.js            | pickup_                                     |
- * | ui.js                 | ui_, map_                                   |
- * | vfx.js                | fx_, prj_                                   |
- * | weapons.js            | weapon_                                     |
+ * | pickups.js            | pickup_, pedestal_                          |
+ * | ui.js                 | ui_                                         |
+ * | weapons.js            | weapon_, prj_                               |
  * | items.js              | item_                                       |
  * | collectibles.js       | active_, card_, sup_                         |
  * | collectibles-charms.js| charm_, trn_                                |
@@ -28,10 +35,8 @@
  */
 
 import player from './player.js';
-import tiles from './tiles.js';
 import pickups from './pickups.js';
 import ui from './ui.js';
-import vfx from './vfx.js';
 import weapons from './weapons.js';
 import items from './items.js';
 import collectibles from './collectibles.js';
@@ -48,10 +53,8 @@ import bossesLate from './bosses-late.js';
 
 export default [
   ...player,
-  ...tiles,
   ...pickups,
   ...ui,
-  ...vfx,
   ...weapons,
   ...items,
   ...collectibles,

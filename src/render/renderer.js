@@ -314,9 +314,20 @@ export class Renderer {
       this.#drawMissing(wx, wy, opts.layer ?? LAYER_ORDER.ENTITY);
       return;
     }
-    const p = this.camera.worldToScreen(wx, wy, this._pt);
-    const px = p.x;
-    const py = p.y;
+    // `screen` places the sprite directly in logical pixels, bypassing the camera.
+    //
+    // The HUD needs this: it is composed in the 960x540 logical frame and does not move with the
+    // player, so routing a status icon through worldToScreen would scroll it away with the room.
+    // Everything in the world uses the camera path; the HUD is the deliberate exception.
+    let px;
+    let py;
+    if (opts.screen) {
+      [px, py] = opts.screen;
+    } else {
+      const p = this.camera.worldToScreen(wx, wy, this._pt);
+      px = p.x;
+      py = p.y;
+    }
     const layer = opts.layer ?? LAYER_ORDER.ENTITY;
     const frameIndex = opts.frame ?? 0;
     const alpha = opts.alpha ?? 1;

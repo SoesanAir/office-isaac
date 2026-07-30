@@ -20,12 +20,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { loadContent } from '../content/index.js';
 import '../src/register-all.js';
 import spriteDefs from '../content/sprites/index.js';
 import { PALETTE } from '../src/render/sprites.js';
 import { TILE } from '../src/core/constants.js';
 import { bossSpriteScale } from '../src/main.js';
+
+// fileURLToPath, not .pathname: the repo path contains a space.
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+/** Every .js file under a directory, recursively. */
+function* walk(dir) {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) yield* walk(full);
+    else if (name.endsWith('.js')) yield full;
+  }
+}
 
 const registry = loadContent({ strict: false });
 
@@ -129,6 +145,48 @@ test('R-QA-005: every spriteId referenced by content resolves', () => {
     // game looks, so it belongs in the test output where it is seen on every run.
     console.log(`    note: ${pending.length} boss sprites unauthored, drawing as placeholders`);
   }
+});
+
+test('R-QA-005: every sprite id referenced from source code resolves', () => {
+  // The gap this closes. The content validator checks `spriteId` fields on content definitions,
+  // so a sprite id that lives in a *code* table is invisible to it — and nine of them did. Every
+  // status effect in src/entities/status.js named an `iconId` for an icon nobody had authored,
+  // and because the HUD never drew them, not even the renderer's magenta missing-sprite box
+  // appeared. A player being burned had no way to know why their health was falling.
+  //
+  // Matched by *context* rather than by id shape. A first attempt matched any quoted string
+  // beginning with a known sprite prefix, and immediately produced two false positives: the
+  // ending slug 'elevator_keeps_going' and the cutscene name 'player_as_owner', neither of which
+  // is a sprite. Namespaces overlap, so the shape of a string cannot tell you what it means.
+  //
+  // The honest limit: this catches ids named in a sprite field or handed to drawSprite, which is
+  // how sprites are actually referenced. An id smuggled through some unrelated variable would
+  // still slip past. That is a narrower promise than "every reference", and it is the one worth
+  // making, because the alternative is a test that cries wolf and gets deleted.
+  const have = new Set(spriteDefs.map((d) => d.id));
+  const patterns = [
+    /(?:spriteId|iconId|sprite)\s*:\s*'([a-z][a-z0-9_]*)'/g,
+    /drawSprite\(\s*'([a-z][a-z0-9_]*)'/g,
+  ];
+
+  const roots = [join(ROOT, 'src'), join(ROOT, 'content')];
+  const missing = new Map();
+  for (const root of roots) {
+    for (const file of walk(root)) {
+      // Sprite *definitions* contain ids being declared, not referenced.
+      if (file.includes(`${sep}sprites${sep}`)) continue;
+      const text = readFileSync(file, 'utf8');
+      for (const pattern of patterns) {
+        for (const [, id] of text.matchAll(pattern)) {
+          if (have.has(id)) continue;
+          if (!missing.has(id)) missing.set(id, relative(ROOT, file));
+        }
+      }
+    }
+  }
+
+  const report = [...missing].map(([id, file]) => `${id} (referenced in ${file})`);
+  assert.deepEqual(report, [], `sprite ids used in code that no sprite defines:\n  ${report.join('\n  ')}`);
 });
 
 test('R-ART-002 / R-ITM-002: no two collectibles share a sprite', () => {
