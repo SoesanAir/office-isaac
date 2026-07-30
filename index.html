@@ -2,13 +2,28 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Office Isaac — internal build</title>
-<meta name="description" content="A top-down action roguelike set in a procedurally generated corporate tower. Internal codename build.">
 <!--
-  GDD refs: 18.2 (pixel-perfect / nearest-neighbour integer scaling, no smoothing
-  that blurs silhouettes; 16:9 primary composition with safe-area support),
-  D-004/R-GOV-004 (no asset path assumes the codename is the product name).
+  `user-scalable=no` is a deliberate exception to the usual rule against disabling zoom.
+  Pinch-zoom on a twin-stick game is not an accessibility affordance, it is a way to lose a
+  run: two thumbs on the glass is the *normal* input here, and the browser reads that as a
+  pinch. Text scaling is not lost — the game carries its own text-scale setting under
+  Options (GDD 17.6), which scales the HUD and menus without resampling the playfield.
+-->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#05050a">
+<meta name="color-scheme" content="dark">
+<!-- Installable to the home screen, where it launches without browser chrome. -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Office Isaac">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Office Isaac</title>
+<meta name="description" content="A top-down action roguelike set in a procedurally generated corporate tower.">
+<!--
+  GDD refs: 18.2 (pixel-perfect / nearest-neighbour integer scaling where achievable; 16:9
+  primary composition with safe-area support), 17.6 (accessibility), 4.3 (the room is the
+  frame), D-004/R-GOV-004 (no asset path assumes the codename is the product name).
 
   Plain ES modules, no build step: GitHub Pages serves this file directly.
 -->
@@ -18,6 +33,38 @@
   <main id="stage">
     <canvas id="game" width="960" height="540" aria-label="Game viewport" role="img"></canvas>
   </main>
+
+  <!--
+    Portrait gate. The playfield is 16:9 and GDD 4.3 makes the room the frame, so there is no
+    honest portrait layout — letterboxing to a 390px-wide strip would leave the room unreadable.
+    Rather than render something unplayable, the game asks for the rotation it needs.
+
+    Shown by CSS media query alone, so it is correct before the first frame and cannot be left
+    stale by a JS orientation listener that missed an event.
+  -->
+  <div id="rotate" role="alertdialog" aria-live="polite" aria-label="Rotate your device">
+    <div class="rotate-inner">
+      <svg viewBox="0 0 64 64" width="72" height="72" aria-hidden="true" focusable="false">
+        <rect x="20" y="6" width="24" height="44" rx="3" fill="none" stroke="currentColor" stroke-width="3"/>
+        <path d="M14 54a24 24 0 0 0 36 0" fill="none" stroke="currentColor" stroke-width="3"
+              stroke-linecap="round" stroke-dasharray="4 4"/>
+        <path d="M48 48l6 6-8 2z" fill="currentColor"/>
+      </svg>
+      <p class="rotate-title">Rotate to landscape</p>
+      <p class="rotate-note">Office Isaac is played sideways.</p>
+    </div>
+  </div>
+
+  <!--
+    First-tap gate on mobile only.
+    Browsers require a user gesture before audio may start AND before fullscreen may be
+    requested, and both are wanted at the same moment, so one tap buys both. Hidden on
+    pointer-precise devices, where neither is needed to start playing.
+  -->
+  <button id="enter" type="button" hidden>
+    <span class="enter-title">Tap to play</span>
+    <span class="enter-note">Sound on · fullscreen</span>
+  </button>
 
   <noscript>
     <p class="notice">This build requires JavaScript and a browser with ES module support.</p>
@@ -34,8 +81,11 @@
       <dt>Pause</dt><dd>Esc</dd>
       <dt>Debug / collision / grayscale</dt><dd>F1 / F2 / F3</dd>
     </dl>
+    <p class="touch-note">On a touch screen: left thumb moves, right thumb fires. Hold DROP to
+      discard a weapon. All keys are remappable under Pause &rarr; Controls.</p>
   </aside>
 
   <script type="module" src="src/main.js"></script>
+  <script type="module" src="src/shell.js"></script>
 </body>
 </html>

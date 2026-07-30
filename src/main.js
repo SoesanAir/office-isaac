@@ -18,6 +18,7 @@ import { Camera } from './render/camera.js';
 import { Renderer, LAYER_ORDER } from './render/renderer.js';
 import { getSpriteDef } from './render/sprites.js';
 import { InputSystem, ACTION } from './systems/input.js';
+import { TouchControls } from './systems/touch.js';
 import { Run, RUN_STATE, doorCost } from './systems/run.js';
 import { moveWithCollision, resolveOverlap, clampToRoom } from './systems/physics.js';
 import { CombatResolver } from './systems/combat.js';
@@ -74,6 +75,10 @@ class Game {
     this.camera = new Camera();
     this.renderer = new Renderer(canvas, { camera: this.camera });
     this.input = new InputSystem().attach(globalThis);
+    // Touch listens on the canvas rather than the window: it needs canvas-relative coordinates,
+    // and it must not swallow gestures aimed at the page around the game.
+    this.touch = new TouchControls().attach(this.canvas);
+    this.input.touch = this.touch;
     this.registry = loadContent({ strict: false });
     this.loc = makeLocalizer(this.registry);
     this.hud = new Hud({ renderer: this.renderer, registry: this.registry, loc: this.loc });
@@ -178,6 +183,26 @@ class Game {
     this.applyDisplaySettings();
     this.#installListeners();
     this.loop = new GameLoop((dt) => this.update(dt), (alpha, frameDt) => this.render(alpha, frameDt));
+  }
+
+  /**
+   * Advance touch holds and tell the overlay what the player can currently do.
+   *
+   * The context is what lets ITEM, PKT and USE dim instead of offering actions that would do
+   * nothing — a button for something unavailable is noise, and on a screen this small noise is
+   * expensive.
+   */
+  #updateTouch(dt) {
+    if (!this.touch?.active) return;
+    this.touch.reducedMotion = Boolean(this.settings?.reducedMotion);
+    this.touch.update(dt);
+    const player = this.run?.player;
+    this.touch.setContext({
+      // `activeId` and `pocket`, not `activeItemId`/`pocket.length` — the pocket is a single
+      // slot holding one entry or null (R-CON-005), never a list.
+      hasActive: Boolean(player?.activeId),
+      hasPocket: Boolean(player?.pocket),
+    });
   }
 
   /**
@@ -536,6 +561,7 @@ class Game {
   update(dt) {
     if (this.fatalError) return;
     this.run.tick(dt);
+    this.#updateTouch(dt);
     // Menus take input before the simulation and suspend it while open.
     //
     // Gated here rather than inside each phase: a phase that forgot the check would keep
@@ -707,6 +733,9 @@ class Game {
     }
 
     this.hud.draw({ player, run: this.run });
+    // Above the HUD, below the menus: a pause screen must cover the thumb sticks, or the player
+    // sees controls for a game that is not currently running.
+    if (!this.menus.blocksGameplay) this.touch.draw(this.renderer);
     this.menus.draw({ results: this.runResults });
     if (this.debug.visible) this.#renderDebug();
     r.endFrame();

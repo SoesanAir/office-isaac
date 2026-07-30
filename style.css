@@ -97,3 +97,116 @@ html, body {
      preference is discoverable from the page as well (GDD 17.6). */
   #game { transition: none; }
 }
+
+/* ===========================================================================
+   Mobile: landscape-only play, safe areas, and the two page-level gates.
+
+   GDD refs: 18.2 (16:9 with safe-area support), 4.3 (the room is the frame),
+             17.6 (accessibility), 17.1 (no dashboard to manage).
+   =========================================================================== */
+
+/* The dev reference card is desk furniture. On a phone it would sit on top of the
+   right-hand thumb stick, so it is removed rather than shrunk — the touch overlay
+   already teaches the controls, and the game's own Controls screen is authoritative. */
+.touch-note { display: none; }
+
+@media (hover: none) and (pointer: coarse) {
+  #controls { display: none; }
+}
+
+/*
+ * Portrait gate.
+ *
+ * A 16:9 playfield in portrait would be a letterboxed strip a few hundred pixels wide, and
+ * GDD 4.3 makes the room the frame — shrinking it to fit is not a readable game. So portrait
+ * is refused outright rather than rendered badly.
+ *
+ * Driven purely by the media query: correct before the first frame, and impossible to leave
+ * stale the way a JS orientation listener can if it misses an event.
+ */
+#rotate { display: none; }
+
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  #rotate {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    background: var(--void);
+    color: var(--ink);
+    text-align: center;
+    padding: calc(env(safe-area-inset-top) + 1.5rem) 1.5rem
+             calc(env(safe-area-inset-bottom) + 1.5rem);
+  }
+  /* Hidden rather than merely covered, so a stray touch cannot reach a stick behind the gate
+     and leave the player walking into a wall the moment they rotate. */
+  #stage, #enter { visibility: hidden; }
+}
+
+.rotate-inner { display: grid; justify-items: center; gap: 0.75rem; }
+.rotate-title { margin: 0; font-size: 16px; letter-spacing: 0.04em; }
+.rotate-note { margin: 0; font-size: 12px; color: var(--dim); }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The only animation on the page, and it is instructional rather than decorative: it shows
+     the rotation being asked for (ui-ux: motion must convey meaning). */
+  .rotate-inner svg { animation: rotate-hint 2.4s ease-in-out infinite; }
+}
+
+@keyframes rotate-hint {
+  0%, 45% { transform: rotate(0deg); }
+  70%, 100% { transform: rotate(-90deg); }
+}
+
+/*
+ * First-tap gate.
+ *
+ * One tap buys both the audio-unlock gesture and the fullscreen request, since browsers
+ * require a user gesture for each and asking twice would be clumsy.
+ */
+#enter {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-content: center;
+  gap: 0.5rem;
+  border: 0;
+  background: rgba(5, 5, 10, 0.92);
+  color: var(--ink);
+  font-family: inherit;
+  /* Comfortably past the 44pt floor: this is the single most important target on the page,
+     and it is the whole screen. */
+  min-height: 100dvh;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#enter[hidden] { display: none; }
+.enter-title { font-size: 18px; letter-spacing: 0.08em; }
+.enter-note { font-size: 11px; color: var(--dim); }
+
+@media (hover: none) and (pointer: coarse) {
+  #stage {
+    /* No padding on the stage itself: the canvas is centred and the safe-area inset is applied
+       as a margin below, so letterbox space absorbs the notch instead of the playfield. */
+    padding: 0;
+  }
+
+  #game {
+    /* On a screen smaller than the 960x540 logical frame the scale is fractional, so the
+       browser is doing the resampling. `pixelated` keeps it nearest-neighbour, which is as
+       close to GDD 18.2 as a sub-1x scale allows. */
+    outline: 0;
+    margin: env(safe-area-inset-top) env(safe-area-inset-right)
+            env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  html, body {
+    /* Belt and braces against rubber-band scrolling; the JS shell also cancels the gestures. */
+    overscroll-behavior: none;
+    position: fixed;
+    inset: 0;
+  }
+}

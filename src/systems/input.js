@@ -147,6 +147,15 @@ export class InputSystem {
     this.mapToggle = false;
 
     this.state = new InputState();
+    /**
+     * Optional touch source, assigned by the game on a touch-capable device.
+     *
+     * Consumed through the same branch as the gamepad because it returns the same
+     * `{moveX, moveY, aimX, aimY}` shape. GDD 4.2's aiming rules are subtle enough that a
+     * second implementation would drift out of step with this one the first time either
+     * changed, so touch decides where the thumb is and nothing more.
+     */
+    this.touch = null;
     this.gamepadIndex = null;
     /** True while a rebinding UI is capturing, so gameplay ignores input. */
     this.capturing = false;
@@ -256,7 +265,25 @@ export class InputSystem {
       if (action) heldActions.add(action);
     }
 
-    const pad = this.#readGamepad(heldActions);
+    let pad = this.#readGamepad(heldActions);
+
+    // Touch merges here rather than in its own branch: buttons join the same held/edge sets the
+    // keyboard fills, and the sticks stand in for a gamepad's when no pad is present.
+    if (this.touch?.active) {
+      const t = this.touch.sample();
+      for (const action of this.touch.heldActions()) heldActions.add(action);
+      for (const action of this.touch.takeEdges()) {
+        s.pressed.add(action);
+        heldActions.add(action);
+        if (action === ACTION.MAP && this.mapMode === 'TOGGLE') this.mapToggle = !this.mapToggle;
+      }
+      if (t && (t.moveX || t.moveY || t.aimX || t.aimY)) {
+        // A real gamepad wins if it is being pushed, so a player with both plugged in is never
+        // fighting a stale touch vector.
+        const padLive = pad && (pad.moveX || pad.moveY || pad.aimX || pad.aimY);
+        if (!padLive) pad = t;
+      }
+    }
 
     for (const action of heldActions) s.held.add(action);
 
@@ -345,7 +372,9 @@ export class InputSystem {
    * unlocking at boot.
    */
   hadAnyInput() {
-    return Boolean(this.anyInputSeen);
+    // A tap is a user gesture too. Without touch here, a phone player would reach the first
+    // room in silence, because the audio graph never gets its permission to start.
+    return Boolean(this.anyInputSeen || this.touch?.active);
   }
 
   /** Is the map currently requested, honouring hold vs toggle? */

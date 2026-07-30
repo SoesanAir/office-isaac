@@ -6,8 +6,9 @@ not obey the floor plan it advertises, and you are going up it.
 Every floor is generated. Every weapon replaces the one you are holding. Every item stacks with
 every other item, including the combinations nobody planned for.
 
-Nothing to install — see below to run it locally, or push this repository to GitHub and the
-included workflow publishes it to Pages automatically.
+**Play it in a browser, on a desktop or a phone: https://soesanair.github.io/office-isaac/**
+
+Nothing to install.
 
 ---
 
@@ -24,6 +25,28 @@ repository *is* the deployable artefact — `index.html` at the root loads `src/
 browser resolves the rest. That is also why GitHub Pages can serve it directly.
 
 Node 20 or newer is needed for the tests and tools, which run the same modules the browser does.
+
+## On a phone
+
+Open the same URL on a phone and turn it sideways. It plays in landscape, fullscreen, with
+on-screen controls; one tap on "Tap to play" turns on sound and goes fullscreen at the same time,
+because browsers require a gesture for each.
+
+| | |
+|---|---|
+| Left thumb, anywhere on the left half | move |
+| Right thumb, anywhere on the right half | aim and fire |
+| `ITEM` / `PKT` | active item, pocket item — dimmed when there is nothing to use |
+| `MAP` / `II` | map, pause |
+| `DROP` | **hold** to discard your weapon |
+
+Both sticks float: they appear centred wherever your thumb lands rather than in a fixed spot, so
+your thumbs never have to find them. Dropping a weapon is a hold rather than a tap because it is
+the one irreversible thing on that screen. Button sizes are computed from your screen so they
+always clear the 44pt platform minimum, which means they take up proportionally more room on a
+small phone — a control you cannot reliably hit is worth less than the pixels it saves.
+
+It can also be added to your home screen, where it launches without browser chrome.
 
 ## Controls
 

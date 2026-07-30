@@ -207,5 +207,16 @@ export class Camera {
  */
 export function integerScaleFor(windowW, windowH) {
   const scale = Math.min(windowW / LOGICAL_WIDTH, windowH / LOGICAL_HEIGHT);
-  return Math.max(1, Math.floor(scale));
+  // Below 1x there is no integer to floor to, and returning 1 would lay the canvas out larger
+  // than the viewport — which on a landscape phone (390pt tall against a 540px frame) cut the
+  // bottom of the play area off the screen entirely.
+  //
+  // GDD 18.2 asks for integer scaling so nearest-neighbour sampling never softens the pixel
+  // art, and that is honoured wherever it is achievable: at 1x and above this still floors. On
+  // a screen physically smaller than the logical frame the choice is between a fractional scale
+  // and cropping the room, and GDD 4.3 makes the room the frame — so the art gives way rather
+  // than the playfield. Phone device-pixel ratios are 2-3x, so a 0.72 CSS scale is still
+  // oversampled in real pixels and holds up.
+  if (scale < 1) return scale;
+  return Math.floor(scale);
 }

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img"
+     aria-label="Office Isaac">
+  <!--
+    Home-screen icon. SVG rather than PNG so it stays crisp at every launcher size with one
+    file and no build step, and vector so it survives maskable cropping.
+
+    The mark is the game in one shape: a tower of floors seen from the front, the topmost one
+    lit. Drawn on the game's own palette (void #05050a, paper #eef0f6, gold #e8c246) with a
+    safe-zone inset of 20% so a circular or squircle mask never clips it.
+  -->
+  <rect width="512" height="512" fill="#05050a"/>
+  <g transform="translate(136 104)">
+    <!-- Six floors, the top one gold: the tower you are climbing, and the office you want. -->
+    <g fill="none" stroke="#6d6d84" stroke-width="10">
+      <rect x="5" y="5" width="230" height="294" rx="6"/>
+    </g>
+    <g fill="#26263a">
+      <rect x="28" y="252" width="184" height="30"/>
+      <rect x="28" y="204" width="184" height="30"/>
+      <rect x="28" y="156" width="184" height="30"/>
+      <rect x="28" y="108" width="184" height="30"/>
+      <rect x="28" y="60" width="184" height="30"/>
+    </g>
+    <!-- Windows, unevenly lit: the building is occupied and not by anyone helpful. -->
+    <g fill="#c8c8d6">
+      <rect x="40" y="260" width="22" height="14"/>
+      <rect x="106" y="260" width="22" height="14"/>
+      <rect x="172" y="212" width="22" height="14"/>
+      <rect x="40" y="164" width="22" height="14"/>
+      <rect x="139" y="164" width="22" height="14"/>
+      <rect x="73" y="116" width="22" height="14"/>
+      <rect x="172" y="116" width="22" height="14"/>
+    </g>
+    <rect x="28" y="12" width="184" height="30" fill="#e8c246"/>
+    <g fill="#05050a">
+      <rect x="40" y="20" width="22" height="14"/>
+      <rect x="73" y="20" width="22" height="14"/>
+      <rect x="106" y="20" width="22" height="14"/>
+      <rect x="139" y="20" width="22" height="14"/>
+      <rect x="172" y="20" width="22" height="14"/>
+    </g>
+  </g>
+</svg>
