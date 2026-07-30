@@ -67,7 +67,10 @@ function run(args, { quiet = false } = {}) {
 // ---------------------------------------------------------------------------
 
 gate('Automated tests (R-QA-002)', {}, () => {
-  const { ok, output } = run(['--test', 'tests/*.test.js'], { quiet: true });
+  // Through the same runner `npm test` uses. Passing a glob directly here worked on the
+  // development machine's Node 24 and silently matched nothing on CI's Node 20, which showed
+  // up as "? passing, ? failing" on a suite that was entirely green.
+  const { ok, output } = run([join('tools', 'run-tests.js')], { quiet: true });
   const pass = /^# pass (\d+)$/m.exec(output)?.[1] ?? /pass (\d+)/.exec(output)?.[1] ?? '?';
   const fail = /^# fail (\d+)$/m.exec(output)?.[1] ?? /fail (\d+)/.exec(output)?.[1] ?? '?';
   process.stdout.write(`  ${pass} passing, ${fail} failing\n`);

@@ -23,7 +23,8 @@
  * | objects.js            | obj_                                        |
  * | hazards.js            | haz_                                        |
  * | enemies-*.js          | enemy_                                      |
- * | bosses.js             | boss_                                       |
+ * | bosses-early.js       | boss_ (BSS-001..015)                        |
+ * | bosses-late.js        | boss_ (BSS-016..029)                        |
  */
 
 import player from './player.js';
@@ -42,7 +43,8 @@ import enemiesIt from './enemies-it.js';
 import enemiesOperations from './enemies-operations.js';
 import enemiesExecutive from './enemies-executive.js';
 import enemiesAlternate from './enemies-alternate.js';
-import bosses from './bosses.js';
+import bossesEarly from './bosses-early.js';
+import bossesLate from './bosses-late.js';
 
 export default [
   ...player,
@@ -61,5 +63,6 @@ export default [
   ...enemiesOperations,
   ...enemiesExecutive,
   ...enemiesAlternate,
-  ...bosses,
+  ...bossesEarly,
+  ...bossesLate,
 ];

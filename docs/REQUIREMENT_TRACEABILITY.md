@@ -10,8 +10,8 @@ convention of naming requirement ids in comments is the trace link itself.
 | Metric | Count |
 | --- | --- |
 | Requirements in the GDD | 125 |
-| Referenced by a test | 55 |
-| Referenced only by implementation | 62 |
+| Referenced by a test | 60 |
+| Referenced only by implementation | 57 |
 | Waived, with a stated reason | 8 |
 | Unreferenced and unwaived | 0 |
 
@@ -23,10 +23,10 @@ listed separately so the difference stays visible.
 
 | ID | Rule | Implementation | Tests |
 | --- | --- | --- | --- |
-| R-ART-001 | Sprites are readable at native gameplay scale. | src/render/renderer.js<br>src/render/sprites.js<br>content/sprites/collectibles.js<br>content/sprites/enemies-open-office.js<br>content/sprites/hazards.js<br>content/sprites/index.js<br>content/sprites/items.js<br>content/sprites/objects.js<br>content/sprites/pickups.js<br>content/sprites/player.js<br>content/sprites/weapons.js | tests/render-smoke.test.js |
-| R-ART-002 | Every collectible has a unique inventory sprite. | src/core/registry.js<br>src/render/sprites.js<br>content/sprites/collectibles.js<br>content/sprites/items.js<br>content/sprites/weapons.js | — |
+| R-ART-001 | Sprites are readable at native gameplay scale. | src/render/renderer.js<br>src/render/sprites.js<br>content/sprites/collectibles-charms.js<br>content/sprites/collectibles.js<br>content/sprites/enemies-open-office.js<br>content/sprites/hazards.js<br>content/sprites/index.js<br>content/sprites/items.js<br>content/sprites/objects.js<br>content/sprites/pickups.js<br>content/sprites/player.js<br>content/sprites/weapons.js | tests/render-smoke.test.js<br>tests/sprites.test.js |
+| R-ART-002 | Every collectible has a unique inventory sprite. | src/core/registry.js<br>src/render/sprites.js<br>content/sprites/collectibles-charms.js<br>content/sprites/collectibles.js<br>content/sprites/items.js<br>content/sprites/weapons.js | tests/sprites.test.js |
 | R-ART-003 | Visual effect degradation preserves hostile readability and mechanical output. | src/core/constants.js<br>src/main.js<br>src/render/renderer.js<br>content/sprites/weapons.js<br>content/world/hazards.js | — |
-| R-ART-004 | Departments are identifiable by material and silhouette as well as palette. | src/render/renderer.js<br>src/render/sprites.js<br>src/schemas.js<br>content/sprites/enemies-it.js<br>content/sprites/enemies-open-office.js | — |
+| R-ART-004 | Departments are identifiable by material and silhouette as well as palette. | src/render/renderer.js<br>src/render/sprites.js<br>src/schemas.js<br>content/sprites/bosses-early.js<br>content/sprites/bosses-late.js<br>content/sprites/enemies-alternate.js<br>content/sprites/enemies-executive.js<br>content/sprites/enemies-it.js<br>content/sprites/enemies-open-office.js<br>content/sprites/enemies-operations.js | — |
 | R-AUD-001 | Critical attack cues remain audible above music at default mix. | src/audio/engine.js<br>content/audio/music.js<br>content/audio/sounds.js | tests/audio.test.js |
 | R-AUD-002 | Repeated weapon sounds support high cadence without harsh stacking. | src/audio/engine.js<br>src/schemas.js<br>content/audio/sounds.js | tests/audio.test.js |
 | R-AUD-003 | Audio-only cues have captions or visual equivalents. | src/audio/engine.js<br>src/core/events.js<br>src/main.js<br>src/schemas.js<br>src/ui/hud.js<br>content/audio/sounds.js<br>content/items/passives.js<br>content/loc/en.js | tests/audio.test.js<br>tests/bosses.test.js |
@@ -34,7 +34,7 @@ listed separately so the difference stays visible.
 | R-BSS-001 | Every normal floor ends in one boss encounter. | src/systems/boss-runtime.js<br>src/systems/run.js<br>content/bosses/early.js<br>content/bosses/late.js<br>content/bosses/mid.js | tests/bosses.test.js |
 | R-BSS-002 | Defeating the boss produces exactly one default Manager Reward pedestal. | src/systems/boss-runtime.js<br>content/bosses/early.js | tests/bosses.test.js |
 | R-BSS-003 | Boss attacks use the same damage and telegraph rules as enemies unless explicitly documented. | src/entities/boss-patterns.js<br>src/systems/boss-runtime.js<br>src/systems/encounter-runtime.js | tests/bosses.test.js |
-| R-BSS-004 | Boss invulnerability phases are short, purposeful, and visually explicit. | src/entities/boss-patterns.js<br>src/schemas.js<br>src/systems/adapters/pattern-adapters.js<br>src/systems/boss-runtime.js<br>src/systems/encounter-runtime.js<br>src/systems/hooks/active-hooks.js<br>src/systems/hooks/card-hooks.js<br>content/bosses/early.js<br>content/bosses/late.js<br>content/bosses/mid.js<br>content/items/actives.js | tests/bosses.test.js<br>tests/items.test.js |
+| R-BSS-004 | Boss invulnerability phases are short, purposeful, and visually explicit. | src/entities/boss-patterns.js<br>src/schemas.js<br>src/systems/adapters/pattern-adapters.js<br>src/systems/boss-runtime.js<br>src/systems/encounter-runtime.js<br>src/systems/hooks/active-hooks.js<br>src/systems/hooks/card-hooks.js<br>content/bosses/early.js<br>content/bosses/late.js<br>content/bosses/mid.js<br>content/items/actives.js<br>content/sprites/bosses-early.js | tests/bosses.test.js<br>tests/items.test.js |
 | R-BSS-005 | Boss arenas are authored for the boss and may use large footprints. | src/schemas.js<br>src/systems/boss-runtime.js<br>src/systems/floorgen.js<br>content/rooms/_department-core.js | tests/bosses.test.js |
 | R-BSS-006 | Bosses preserve safe response routes during moving-wall and zone phases. | src/entities/boss-patterns.js<br>src/schemas.js<br>src/systems/boss-runtime.js<br>content/bosses/early.js<br>content/bosses/late.js<br>content/enemies/open-office-it.js<br>content/rooms/_department-core.js<br>content/rooms/open-office.js | tests/bosses.test.js |
 | R-BSS-007 | Set drops are declared in data and do not accidentally duplicate non-repeatable collected items. | content/pools/index.js | tests/bosses.test.js |
@@ -52,15 +52,15 @@ listed separately so the difference stays visible.
 | R-CON-002 | Action Card identity and effect are visible when discovered. | src/systems/hooks/card-hooks.js<br>content/items/cards.js<br>content/loc/en.js | — |
 | R-CON-003 | Supplement appearance-to-effect mapping is randomized per run. | src/systems/hooks/supplement-hooks.js<br>src/systems/loot.js<br>content/items/supplements.js<br>content/sprites/collectibles.js | tests/items.test.js |
 | R-CON-004 | After a Supplement effect is identified, all matching wrappers in that run display the known effect name. | src/systems/hooks/supplement-hooks.js<br>src/systems/loot.js<br>content/items/supplements.js | — |
-| R-CON-005 | An item may grant additional pocket capacity, but capacity is not a baseline menu system. | src/entities/player.js | — |
+| R-CON-005 | An item may grant additional pocket capacity, but capacity is not a baseline menu system. | src/entities/player.js<br>src/main.js | — |
 | R-DPT-001 | Normal departments are implemented as two-floor chapter pairs. | content/departments/departments.js<br>content/rooms/_department-core.js<br>content/rooms/departments.js | tests/departments.test.js |
 | R-DPT-002 | The first visible route contains four departments and eight generated floors before the CEO. | content/departments/routes.js | — |
 | R-DPT-003 | HR is not a mandatory base department. | content/departments/departments.js<br>content/encounters/open-office-it.js | — |
 | R-DPT-004 | Hidden departments remain absent from undiscovered maps and completion summaries. | content/departments/departments.js<br>content/departments/routes.js | — |
-| R-DPT-005 | Each department remains visually readable in grayscale through silhouette and material, not color alone. | src/render/renderer.js<br>src/render/sprites.js<br>src/schemas.js<br>src/systems/template-index.js<br>content/departments/departments.js<br>content/rooms/_department-core.js<br>content/rooms/departments.js<br>content/rooms/open-office.js<br>content/sprites/enemies-it.js<br>content/sprites/enemies-open-office.js<br>content/sprites/index.js | tests/departments.test.js |
+| R-DPT-005 | Each department remains visually readable in grayscale through silhouette and material, not color alone. | src/render/renderer.js<br>src/render/sprites.js<br>src/schemas.js<br>src/systems/template-index.js<br>content/departments/departments.js<br>content/rooms/_department-core.js<br>content/rooms/departments.js<br>content/rooms/open-office.js<br>content/sprites/bosses-early.js<br>content/sprites/bosses-late.js<br>content/sprites/enemies-alternate.js<br>content/sprites/enemies-executive.js<br>content/sprites/enemies-it.js<br>content/sprites/enemies-open-office.js<br>content/sprites/enemies-operations.js<br>content/sprites/index.js | tests/departments.test.js |
 | R-DPT-006 | A new department can be inserted or used as an alternate without modifying the floor generator core. | content/departments/departments.js<br>content/departments/routes.js | — |
 | R-ECO-001 | Credit, Access Card, and Toner Charge counts are visible integers. | src/entities/health.js<br>src/entities/player.js<br>src/systems/hooks/economy-hooks.js<br>src/systems/shop.js<br>content/meta/challenges.js | tests/items.test.js |
-| R-ECO-002 | A standard shop purchase never requires a second confirmation. | src/systems/shop.js | tests/items.test.js |
+| R-ECO-002 | A standard shop purchase never requires a second confirmation. | src/systems/shop.js<br>src/systems/touch.js | tests/items.test.js |
 | R-ECO-003 | Toner Charges open eligible hidden walls only when placed within the authored tolerance zone. | src/systems/floor-validate.js | — |
 | R-ECO-004 | Destroyed environmental objects roll contents from their own scoped loot table. | src/systems/hooks/world-hooks.js | — |
 | R-ECO-005 | Resource starvation protection may guarantee a needed Access Card after enough eligible clears, but must be subtle and data-defined. | src/systems/hooks/charm-hooks.js<br>src/systems/hooks/economy-hooks.js<br>content/items/charms.js | — |
@@ -93,7 +93,7 @@ listed separately so the difference stays visible.
 | R-GOV-003 | Content must be data-driven unless a mechanic genuinely requires code. | src/core/registry.js<br>src/core/schema.js<br>src/main.js<br>src/systems/effects.js<br>src/systems/hooks/stat-hooks.js<br>src/systems/hooks/world-hooks.js<br>src/systems/unlocks.js<br>content/index.js<br>tools/traceability.js | — |
 | R-GOV-004 | The shipping title, engine, and final art production pipeline are separate production decisions. | _waived: Process rule about design review cadence._ | — |
 | R-ITM-001 | Passive items stack without a normal inventory cap. | src/entities/player.js<br>src/systems/attack-graph.js<br>src/systems/hooks/stat-hooks.js<br>content/items/passives.js<br>content/items/transformations.js | tests/items.test.js |
-| R-ITM-002 | Every collectible has a unique sprite and fixed class. | src/core/registry.js<br>src/core/schema.js<br>content/items/passives.js<br>content/sprites/collectibles.js<br>content/sprites/index.js<br>content/sprites/items.js<br>content/sprites/weapons.js | tests/items.test.js |
+| R-ITM-002 | Every collectible has a unique sprite and fixed class. | src/core/registry.js<br>src/core/schema.js<br>content/items/passives.js<br>content/sprites/collectibles-charms.js<br>content/sprites/collectibles.js<br>content/sprites/index.js<br>content/sprites/items.js<br>content/sprites/weapons.js | tests/items.test.js<br>tests/sprites.test.js |
 | R-ITM-003 | Item odds are data-driven and not player configurable. | src/systems/loot.js<br>content/pools/index.js | — |
 | R-ITM-004 | Floor 1 can produce a quality-4 jackpot at a 0.10 percent pedestal roll before other modifiers. | src/core/constants.js<br>src/systems/loot.js<br>content/pools/index.js | tests/items.test.js |
 | R-ITM-005 | Pickup text hides raw stat deltas. | src/schemas.js<br>src/systems/shop.js<br>src/ui/hud.js<br>content/items/passives.js<br>content/loc/en.js<br>tools/gen-loc-keys.mjs<br>tools/validate-content.js | tests/items.test.js |
@@ -101,7 +101,7 @@ listed separately so the difference stays visible.
 | R-ITM-007 | Liability items can be declined and cannot create an unwinnable normal run by themselves. | src/schemas.js<br>src/systems/hooks/combat-hooks.js<br>src/systems/hooks/stat-hooks.js<br>content/items/passives.js<br>content/meta/challenges.js | tests/items.test.js |
 | R-ITM-008 | Strong builds are not secretly balanced downward by item selection. | src/systems/combat.js<br>src/systems/hooks/charm-hooks.js<br>src/systems/hooks/economy-hooks.js<br>src/systems/loot.js<br>src/systems/shop.js | tests/attack-graph.test.js<br>tests/items.test.js |
 | R-PLY-001 | Internal stats use numeric values; normal UI uses qualitative language. | src/entities/health.js | tests/traversal.test.js |
-| R-PLY-002 | Movement remains responsive while firing. | src/entities/player.js<br>src/systems/input.js<br>src/systems/physics.js<br>src/systems/player-attack.js | — |
+| R-PLY-002 | Movement remains responsive while firing. | src/entities/player.js<br>src/systems/input.js<br>src/systems/physics.js<br>src/systems/player-attack.js<br>src/systems/touch.js | tests/touch.test.js |
 | R-PLY-003 | Stat changes clamp to safe data-defined limits. | src/core/constants.js<br>src/core/math.js<br>src/entities/player.js<br>src/entities/status.js<br>src/main.js<br>src/systems/adapters/pattern-adapters.js<br>src/systems/attack-graph.js<br>src/systems/hooks/stat-hooks.js<br>content/enemies/alternate.js | tests/attack-graph.test.js<br>tests/items.test.js |
 | R-PLY-004 | Damage sources carry tags and a source entity ID. | src/core/constants.js<br>src/core/pool.js<br>src/systems/combat.js | — |
 | R-PLY-005 | The player can be visually understood when surrounded by effects. | src/entities/player.js<br>src/main.js<br>content/sprites/player.js | — |
@@ -118,12 +118,12 @@ listed separately so the difference stays visible.
 | R-ROM-004 | Environmental stories never conceal mandatory information. | src/main.js<br>src/systems/encounter-runtime.js<br>src/systems/room-build.js<br>content/rooms/_builder.js<br>content/rooms/_department-core.js<br>content/rooms/open-office.js | — |
 | R-ROM-005 | Revisiting a cleared room restores its persistent destroyed-object and pickup state. | src/systems/room-build.js<br>src/systems/room-state.js | — |
 | R-ROM-006 | Every room template declares valid navigation regions for player and relevant enemy movement classes. | src/core/constants.js<br>src/schemas.js<br>src/systems/floor-validate.js<br>src/systems/physics.js<br>content/rooms/_builder.js<br>content/rooms/open-office.js | tests/templates.test.js<br>tests/traversal.test.js |
-| R-SAV-001 | Profile and run saves are versioned and migratable. | src/systems/save.js | — |
+| R-SAV-001 | Profile and run saves are versioned and migratable. | src/systems/save.js | tests/controls.test.js |
 | R-SAV-002 | A corrupted primary save falls back to a validated backup. | src/systems/save.js | — |
 | R-SAV-003 | Entered-seed runs cannot unlock normal progression by default. | src/systems/run.js | — |
 | R-SAV-004 | Debug exports contain enough state to reproduce generation defects. | src/systems/combat.js | — |
 | R-SAV-005 | Telemetry is not required for save, progression, or balance. | src/systems/save.js | — |
-| R-TEC-001 | Normal content is defined outside core logic in versioned data files or engine resources. | src/core/registry.js<br>src/register-all.js<br>src/systems/effects.js<br>content/enemies/open-office-it.js<br>content/index.js | — |
+| R-TEC-001 | Normal content is defined outside core logic in versioned data files or engine resources. | src/core/registry.js<br>src/register-all.js<br>src/shell.js<br>src/systems/effects.js<br>content/enemies/open-office-it.js<br>content/index.js | — |
 | R-TEC-002 | RNG streams are scoped and reproducible. | src/core/loop.js<br>src/core/rng.js<br>src/systems/boss-runtime.js<br>src/systems/floorgen.js<br>src/systems/shop.js | tests/bosses.test.js<br>tests/encounters.test.js<br>tests/floorgen.test.js<br>tests/items.test.js |
 | R-TEC-003 | Save identity uses stable IDs and schema versions. | src/audio/engine.js<br>src/systems/encounter-runtime.js<br>src/systems/hooks/transformation-hooks.js | tests/audio.test.js<br>tests/traversal.test.js |
 | R-TEC-004 | Entity and projectile pooling prevents allocation spikes in high-output builds. | src/core/pool.js<br>src/systems/encounter-runtime.js | — |
@@ -131,14 +131,14 @@ listed separately so the difference stays visible.
 | R-TEC-006 | No core system checks item display names to implement behavior. | src/core/registry.js<br>src/main.js<br>src/schemas.js<br>src/systems/effects.js<br>content/loc/en.js | — |
 | R-TEC-007 | Presentation reduction cannot alter combat results. | src/core/events.js<br>src/main.js<br>src/render/renderer.js<br>src/systems/combat.js<br>src/systems/save.js | tests/progression.test.js |
 | R-TEC-008 | Generated floors are persisted as instances, not regenerated on ordinary revisit. | src/main.js<br>src/systems/floorgen.js<br>src/systems/room-build.js<br>src/systems/run.js<br>src/systems/save.js | — |
-| R-UIX-001 | Normal HUD exposes no detailed numeric stat sheet. | src/entities/health.js<br>src/systems/adapters/pattern-adapters.js<br>src/ui/hud.js | — |
-| R-UIX-002 | Obvious resources and costs use visible integers. | src/ui/hud.js | — |
+| R-UIX-001 | Normal HUD exposes no detailed numeric stat sheet. | src/entities/health.js<br>src/systems/adapters/pattern-adapters.js<br>src/systems/touch.js<br>src/ui/hud.js | — |
+| R-UIX-002 | Obvious resources and costs use visible integers. | src/ui/hud.js | tests/controls.test.js |
 | R-UIX-003 | Unknown content totals remain hidden. | src/ui/menus.js | — |
 | R-UIX-004 | Accessibility settings do not expose loot-weight or rarity tuning. | src/ui/menus.js | — |
-| R-UIX-005 | Every critical color cue has a non-color cue. | src/entities/status.js<br>src/main.js<br>src/render/renderer.js<br>src/ui/hud.js<br>src/ui/menus.js<br>content/enemies/open-office-it.js<br>content/sprites/hazards.js<br>content/sprites/pickups.js<br>content/world/hazards.js | tests/menus.test.js |
+| R-UIX-005 | Every critical color cue has a non-color cue. | src/entities/status.js<br>src/main.js<br>src/render/renderer.js<br>src/systems/touch.js<br>src/ui/hud.js<br>src/ui/menus.js<br>content/enemies/open-office-it.js<br>content/sprites/hazards.js<br>content/sprites/pickups.js<br>content/world/hazards.js | tests/menus.test.js<br>tests/touch.test.js |
 | R-UIX-006 | Pickup banners never obscure active combat danger. | src/ui/hud.js | — |
 | R-VIS-001 | A new player understands movement and firing without a tutorial wall. | _waived: A playtest finding — whether a new player needs a tutorial wall cannot be asserted in a unit test._ | — |
-| R-VIS-002 | A veteran can identify most common enemies and their attack intent at a glance. | content/sprites/enemies-it.js<br>content/sprites/enemies-open-office.js | — |
+| R-VIS-002 | A veteran can identify most common enemies and their attack intent at a glance. | content/sprites/bosses-early.js<br>content/sprites/bosses-late.js<br>content/sprites/enemies-alternate.js<br>content/sprites/enemies-executive.js<br>content/sprites/enemies-it.js<br>content/sprites/enemies-open-office.js<br>content/sprites/enemies-operations.js | tests/sprites.test.js |
 | R-VIS-003 | Runs produce stories worth retelling. | _waived: Readability judgement made in the art review; the sprite grids are the artefact, not a test._ | — |
 | R-VIS-004 | Power growth is visible. | _waived: Readability judgement made in the art review._ | — |
 | R-VIS-005 | The game creates the belief that the next run could be exceptional. | _waived: Readability judgement made in the art review._ | — |

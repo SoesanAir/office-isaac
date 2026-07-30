@@ -147,8 +147,6 @@ waived, but not silently.
 
 Recorded here rather than left for a player to find:
 
-- Most boss sprites are still unauthored and draw as magenta placeholder boxes. The fights
-  themselves are complete — phases, patterns, telegraphs and arenas all work.
 - Balance beyond the automated thresholds has not had a human pass. Generation, population and
   soft-lock guarantees are enforced by tests; whether floor 9 *feels* right is not.
 
