@@ -18,7 +18,8 @@
  * | vfx.js                | fx_, prj_                                   |
  * | weapons.js            | weapon_                                     |
  * | items.js              | item_                                       |
- * | collectibles.js       | active_, card_, sup_, charm_, trn_          |
+ * | collectibles.js       | active_, card_, sup_                         |
+ * | collectibles-charms.js| charm_, trn_                                |
  * | objects.js            | obj_                                        |
  * | hazards.js            | haz_                                        |
  * | enemies-*.js          | enemy_                                      |
@@ -33,6 +34,7 @@ import vfx from './vfx.js';
 import weapons from './weapons.js';
 import items from './items.js';
 import collectibles from './collectibles.js';
+import collectibleCharms from './collectibles-charms.js';
 import objects from './objects.js';
 import hazards from './hazards.js';
 import enemiesOpenOffice from './enemies-open-office.js';
@@ -51,6 +53,7 @@ export default [
   ...weapons,
   ...items,
   ...collectibles,
+  ...collectibleCharms,
   ...objects,
   ...hazards,
   ...enemiesOpenOffice,
