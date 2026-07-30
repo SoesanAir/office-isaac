@@ -10,8 +10,8 @@ convention of naming requirement ids in comments is the trace link itself.
 | Metric | Count |
 | --- | --- |
 | Requirements in the GDD | 143 |
-| Referenced by a test | 68 |
-| Referenced only by implementation | 65 |
+| Referenced by a test | 69 |
+| Referenced only by implementation | 64 |
 | Waived, with a stated reason | 10 |
 | Unreferenced and unwaived | 0 |
 
@@ -141,7 +141,7 @@ listed separately so the difference stays visible.
 | R-SAV-003 | Entered-seed runs cannot unlock normal progression by default. | src/systems/run.js | — |
 | R-SAV-004 | Debug exports contain enough state to reproduce generation defects. | src/systems/combat.js | — |
 | R-SAV-005 | Telemetry is not required for save, progression, or balance. | src/systems/save.js | — |
-| R-TEC-001 | Normal content is defined outside core logic in versioned data files or engine resources. | src/core/registry.js<br>src/register-all.js<br>src/shell.js<br>src/systems/effects.js<br>content/enemies/open-office-it.js<br>content/index.js | — |
+| R-TEC-001 | Normal content is defined outside core logic in versioned data files or engine resources. | src/core/registry.js<br>src/register-all.js<br>src/shell.js<br>src/systems/effects.js<br>content/enemies/open-office-it.js<br>content/index.js | tests/menu-touch.test.js |
 | R-TEC-002 | RNG streams are scoped and reproducible. | src/core/loop.js<br>src/core/rng.js<br>src/systems/boss-runtime.js<br>src/systems/floorgen.js<br>src/systems/shop.js | tests/bosses.test.js<br>tests/encounters.test.js<br>tests/floorgen.test.js<br>tests/items.test.js |
 | R-TEC-003 | Save identity uses stable IDs and schema versions. | src/audio/engine.js<br>src/systems/encounter-runtime.js<br>src/systems/hooks/transformation-hooks.js | tests/audio.test.js<br>tests/traversal.test.js |
 | R-TEC-004 | Entity and projectile pooling prevents allocation spikes in high-output builds. | src/core/pool.js<br>src/systems/encounter-runtime.js | — |

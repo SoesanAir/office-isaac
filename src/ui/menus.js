@@ -152,6 +152,12 @@ export class MenuSystem {
     this.scroll = 0;
     /** Set while a run is live, so Title offers Continue and Pause is reachable. */
     this.hasRun = false;
+    /** Row bounds from the last draw, so a tap can be resolved to a row. */
+    this.rowHitboxes = [];
+    /** True while a finger rests on a HOLD row. */
+    this.touchHolding = false;
+    /** Set by the game on a touch device, so the back affordance is only drawn where it works. */
+    this.touchActive = false;
   }
 
   /**
@@ -173,6 +179,93 @@ export class MenuSystem {
     this.cursor = 0;
     this.scroll = 0;
     this.holdTimer = 0;
+  }
+
+  /**
+   * Drive a menu by touch.
+   *
+   * Without this a phone could not start the game at all. The title screen is a menu, menus were
+   * driven only by CONFIRM and the movement keys, and the touch layer deliberately offers no
+   * CONFIRM button — so a player on a phone reached the title screen and had no way past it.
+   *
+   * Tap-to-select rather than an on-screen d-pad: a list of rows on a touch screen is something
+   * you press, and emulating a cursor with arrows would be re-creating a keyboard on a device
+   * that does not have one. A tap moves the cursor to the row AND acts on it in one gesture,
+   * because on glass those are not separate intentions.
+   *
+   * @param {number} x logical x
+   * @param {number} y logical y
+   * @param {'DOWN'|'UP'} phase
+   * @returns {boolean} true when the touch was consumed
+   */
+  touchAt(x, y, phase = 'DOWN') {
+    if (!this.current) return false;
+
+    // The back affordance, hit-tested before the rows because it overlaps the title band.
+    if (phase === 'DOWN' && this.#inBackButton(x, y)) {
+      if (this.current !== SCREEN.TITLE) this.back();
+      return true;
+    }
+
+    const row = (this.rowHitboxes ?? []).find((r) => y >= r.top && y <= r.bottom);
+    if (!row) {
+      // A tap on empty space releases any hold in progress rather than being ignored, so
+      // lifting a finger off a HOLD row always cancels cleanly.
+      if (phase === 'UP') this.holdTimer = 0;
+      return true;
+    }
+
+    if (row.kind === 'HEADER' || row.kind === 'LABEL') return true;
+
+    if (phase === 'DOWN') {
+      this.cursor = row.index;
+      const entry = this.items()[row.index];
+      if (!entry) return true;
+      // A HOLD row does not fire on contact: it starts filling, and #touchHolding keeps it
+      // filling while the finger stays down (GDD 21.2 wants a deliberate act).
+      if (entry.kind === 'HOLD') {
+        this.touchHolding = true;
+        this.holdTimer = 0;
+        return true;
+      }
+      if (entry.kind === 'ACTION' || entry.kind === 'REBIND') entry.run?.();
+      else this.#nudge(entry, 1);
+      return true;
+    }
+
+    // UP
+    this.touchHolding = false;
+    this.holdTimer = 0;
+    return true;
+  }
+
+  /** Advance a touch hold. Called each frame while a finger rests on a HOLD row. */
+  tickTouchHold(dt) {
+    if (!this.touchHolding) return;
+    const entry = this.items()[this.cursor];
+    if (entry?.kind !== 'HOLD') {
+      this.touchHolding = false;
+      this.holdTimer = 0;
+      return;
+    }
+    this.holdTimer += dt;
+    if (this.holdTimer >= HOLD_SECONDS) {
+      this.holdTimer = 0;
+      this.touchHolding = false;
+      entry.run?.();
+    }
+  }
+
+  /** The touch back button's box, in logical pixels. Top right, clear of the row list. */
+  get backButtonRect() {
+    const size = 34;
+    return { x: LOGICAL_WIDTH - PAD - size, y: PAD - 8, w: size, h: size };
+  }
+
+  #inBackButton(x, y) {
+    if (!this.touchActive || this.current === SCREEN.TITLE) return false;
+    const r = this.backButtonRect;
+    return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   }
 
   /** Back one screen. Returns false when there was nothing to close. */
@@ -519,6 +612,31 @@ export class MenuSystem {
     if (this.cursor < this.scroll) this.scroll = this.cursor;
     if (this.cursor >= this.scroll + visibleRows) this.scroll = this.cursor - visibleRows + 1;
 
+    /**
+     * Row geometry, computed here rather than inside the draw callback.
+     *
+     * `renderer.push` defers its callback to the end of the frame, so recording these while
+     * drawing meant they did not exist until a frame had been flushed — a tap arriving before the
+     * first `endFrame()` would find no rows and silently do nothing. Geometry is arithmetic, not
+     * drawing, so it belongs out here where it is ready the moment `draw()` returns.
+     *
+     * The draw loop below iterates this same list, so the tappable band and the painted text
+     * cannot disagree: there is one source for both, and a tap can never land a row off.
+     */
+    this.rowHitboxes = [];
+    let rowY = PAD + 40;
+    for (let i = this.scroll; i < items.length && i < this.scroll + visibleRows; i += 1) {
+      this.rowHitboxes.push({
+        index: i,
+        kind: items[i].kind,
+        y: rowY,
+        // Full width, because a narrow target on glass is a miss.
+        top: rowY - rowHeight / 2,
+        bottom: rowY + rowHeight / 2,
+      });
+      rowY += rowHeight;
+    }
+
     this.renderer.push(LAYER_ORDER.OVERLAY, (c) => {
       c.fillStyle = 'rgba(4,4,9,0.9)';
       c.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
@@ -530,8 +648,9 @@ export class MenuSystem {
       c.fillText(title, PAD, PAD + 6);
 
       c.font = `${Math.round(12 * scale)}px "Courier New", monospace`;
-      let y = PAD + 40;
-      for (let i = this.scroll; i < items.length && i < this.scroll + visibleRows; i += 1) {
+      for (const box of this.rowHitboxes) {
+        const i = box.index;
+        const y = box.y;
         const entry = items[i];
         const selected = i === this.cursor;
 
@@ -555,7 +674,26 @@ export class MenuSystem {
             c.fillRect(PAD, y + rowHeight * 0.42, width, 2);
           }
         }
-        y += rowHeight;
+      }
+
+      // Touch back affordance. Drawn only on a touch device and never on the title screen, where
+      // there is nowhere to go back to — an arrow that does nothing is worse than no arrow.
+      if (this.touchActive && this.current !== SCREEN.TITLE) {
+        const r = this.backButtonRect;
+        c.globalAlpha = 0.9;
+        c.fillStyle = '#141420';
+        c.fillRect(r.x, r.y, r.w, r.h);
+        c.strokeStyle = '#9a9aae';
+        c.lineWidth = 2;
+        c.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+        // A left chevron: the same "back" language every platform uses, and legible without text.
+        c.strokeStyle = '#c8c8d6';
+        c.beginPath();
+        c.moveTo(r.x + r.w * 0.6, r.y + r.h * 0.28);
+        c.lineTo(r.x + r.w * 0.38, r.y + r.h * 0.5);
+        c.lineTo(r.x + r.w * 0.6, r.y + r.h * 0.72);
+        c.stroke();
+        c.globalAlpha = 1;
       }
 
       if (results) this.#drawResults(c, results, scale);

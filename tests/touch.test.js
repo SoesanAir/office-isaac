@@ -384,3 +384,11 @@ test('a rotated canvas sizes buttons off the layout box, not the rotated bounds'
     assert.ok(diameterPt >= TARGET_RADIUS_PT * 2 - 0.5, `${b.label} is ${diameterPt.toFixed(1)}pt`);
   }
 });
+
+test('attaching to a non-element throws instead of silently doing nothing', () => {
+  // The regression this pins. A defensive early return here meant main.js could pass an
+  // undefined canvas — which it did — and the touch layer was dead on every phone with nothing
+  // in the console to say so. A programming error should be loud.
+  assert.throws(() => new TouchControls().attach(undefined), /needs a canvas element/);
+  assert.throws(() => new TouchControls().attach({}), /needs a canvas element/);
+});

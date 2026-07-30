@@ -73,11 +73,20 @@ class Game {
     this.events = new EventBus();
     this.scheduler = new PhaseScheduler();
     this.camera = new Camera();
+    /**
+     * Kept on the instance because more than the renderer needs it.
+     *
+     * This was the bug that made the whole touch layer dead on a phone: `this.canvas` was never
+     * assigned, so `attach(this.canvas)` received undefined, hit its own defensive guard, and
+     * returned without binding a single listener. No controls appeared and nothing moved, and
+     * because the guard failed silently there was nothing to see in the console.
+     */
+    this.canvas = canvas;
     this.renderer = new Renderer(canvas, { camera: this.camera });
     this.input = new InputSystem().attach(globalThis);
     // Touch listens on the canvas rather than the window: it needs canvas-relative coordinates,
     // and it must not swallow gestures aimed at the page around the game.
-    this.touch = new TouchControls().attach(this.canvas);
+    this.touch = new TouchControls().attach(canvas);
     this.input.touch = this.touch;
     this.registry = loadContent({ strict: false });
     this.loc = makeLocalizer(this.registry);
@@ -194,6 +203,9 @@ class Game {
    */
   #updateTouch(dt) {
     if (!this.touch?.active) return;
+    // Taps are only meaningful to the menus. Cleared every frame during gameplay so a stale
+    // queue cannot fire a menu row the instant one opens.
+    if (!this.menus.blocksGameplay) this.touch.takeTaps();
     this.touch.reducedMotion = Boolean(this.settings?.reducedMotion);
     this.touch.update(dt);
     const player = this.run?.player;
@@ -571,6 +583,13 @@ class Game {
     // running under the pause screen, and "the game kept playing while I was in Options" is
     // the exact bug this shape makes impossible.
     const menuInput = this.input.sample({ menuOnly: true });
+    // Touch drives menus by tapping rows. Routed before menus.update so a tap that opens a screen
+    // is not also handed to the screen it just opened.
+    this.menus.touchActive = Boolean(this.touch?.active);
+    if (this.menus.blocksGameplay && this.touch?.active) {
+      for (const tap of this.touch.takeTaps()) this.menus.touchAt(tap.x, tap.y, tap.phase);
+      this.menus.tickTouchHold(dt);
+    }
     if (this.menus.update(dt, menuInput)) {
       if (this.audio.ready) this.audio.suspend();
       return;

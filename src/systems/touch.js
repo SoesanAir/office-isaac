@@ -125,15 +125,30 @@ const BUTTONS = Object.freeze([
 /** Where the movement stick may start; everything right of it starts the fire stick. */
 const MOVE_ZONE_MAX_X = LOGICAL_WIDTH * 0.5;
 
+/**
+ * Is this a touch-primary device?
+ *
+ * The same query the shell and the renderer use, so "is this a phone" has one answer across the
+ * codebase rather than three that can disagree.
+ */
+function coarsePointer() {
+  return globalThis.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches ?? false;
+}
+
 export class TouchControls {
   constructor({ haptics = true } = {}) {
     /**
-     * Set once a real touch has been seen.
+     * Whether the touch overlay is live.
      *
-     * The overlay stays hidden until then, so a desktop player never sees thumb sticks and a
-     * phone player never has to enable anything.
+     * True from the start on a touch-primary device, and flipped true by any real touch on a
+     * hybrid one. It used to require a touch first, on the theory that the overlay should stay
+     * out of a desktop player's way — but on a phone that produced a black screen with no
+     * visible controls, and a player with nothing to aim at does not discover that the left half
+     * of the screen is a thumb stick. Invisible controls are indistinguishable from broken ones.
+     *
+     * A mouse still never activates it, so a desktop session is unaffected.
      */
-    this.active = false;
+    this.active = coarsePointer();
     this.idleSeconds = 0;
     this.haptics = haptics;
     /** Reduced motion switches the idle fade off rather than animating opacity. */
@@ -143,6 +158,14 @@ export class TouchControls {
     this.pointers = new Map();
     this.held = new Set();
     this.edge = new Set();
+    /**
+     * Raw touch positions in logical pixels, for anything that hit-tests its own layout.
+     *
+     * The menus need this: they are lists of rows, and a row is something you press. Routing
+     * them through the stick-and-button model instead would mean emulating a d-pad on a device
+     * that has no keyboard.
+     */
+    this.taps = [];
 
     /**
      * What the player can currently do, pushed in each frame by the game.
@@ -162,7 +185,18 @@ export class TouchControls {
   }
 
   attach(canvas) {
-    if (!canvas?.addEventListener) return this;
+    // Loud, not defensive.
+    //
+    // This used to be `if (!canvas?.addEventListener) return this;`, and that single line cost two
+    // deploys. main.js passed `this.canvas`, which was never assigned, so attach received
+    // undefined, took the early return, and bound no listeners — the entire touch layer was dead
+    // on every phone and the console said nothing. A guard that swallows a programming error is
+    // worse than no guard, because it converts a crash into a silent absence of behaviour.
+    //
+    // There is no legitimate reason to attach touch to a non-element, so this throws.
+    if (!canvas?.addEventListener) {
+      throw new TypeError('TouchControls.attach needs a canvas element, got ' + typeof canvas);
+    }
     this.canvas = canvas;
 
     const onDown = (e) => {
@@ -173,7 +207,9 @@ export class TouchControls {
       canvas.setPointerCapture?.(e.pointerId);
       this.active = true;
       this.idleSeconds = 0;
-      this.#begin(e.pointerId, this.#toLogical(e));
+      const pt = this.#toLogical(e);
+      this.taps.push({ ...pt, id: e.pointerId, phase: 'DOWN' });
+      this.#begin(e.pointerId, pt);
     };
     const onMove = (e) => {
       if (e.pointerType !== 'touch') return;
@@ -184,6 +220,7 @@ export class TouchControls {
     };
     const onUp = (e) => {
       if (e.pointerType !== 'touch') return;
+      this.taps.push({ ...this.#toLogical(e), id: e.pointerId, phase: 'UP' });
       this.#end(e.pointerId);
     };
 
@@ -212,6 +249,7 @@ export class TouchControls {
     this.pointers.clear();
     this.held.clear();
     this.edge.clear();
+    this.taps = [];
   }
 
   /** What the player can currently do, so contextual buttons can dim (see class comment). */
@@ -438,6 +476,13 @@ export class TouchControls {
     for (const p of this.pointers.values()) {
       if (p.role === 'BUTTON' && p.action && !p.hold) out.add(p.action);
     }
+    return out;
+  }
+
+  /** Raw taps since the last call, consumed once. */
+  takeTaps() {
+    const out = this.taps;
+    this.taps = [];
     return out;
   }
 

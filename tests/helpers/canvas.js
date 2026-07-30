@@ -48,12 +48,35 @@ export function makeContext() {
 /** Stub canvas element good enough for both the renderer and sprite baking. */
 export function makeCanvas(width = LOGICAL_WIDTH, height = LOGICAL_HEIGHT) {
   const ctx = makeContext();
+  const handlers = new Map();
   return {
     width,
     height,
     style: {},
+    // A real canvas has these, and the stub not having them let a genuine bug through: the touch
+    // layer attaches listeners to the canvas, and because this stub could not accept them the
+    // integration test never exercised that path. It now does.
+    dataset: {},
+    offsetWidth: width,
+    offsetHeight: height,
+    getBoundingClientRect: () => ({ left: 0, top: 0, width, height }),
+    addEventListener: (type, fn) => {
+      if (!handlers.has(type)) handlers.set(type, []);
+      handlers.get(type).push(fn);
+    },
+    removeEventListener: (type, fn) => {
+      const list = handlers.get(type) || [];
+      const at = list.indexOf(fn);
+      if (at >= 0) list.splice(at, 1);
+    },
+    setPointerCapture: () => {},
+    /** Fire a synthetic event, so a test can drive real input through the real listeners. */
+    dispatch: (type, event) => {
+      for (const fn of handlers.get(type) || []) fn({ preventDefault() {}, ...event });
+    },
     getContext: () => ctx,
     _ctx: ctx,
+    _handlers: handlers,
   };
 }
 

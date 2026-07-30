@@ -19,6 +19,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { LOGICAL_WIDTH, LOGICAL_HEIGHT, SIM_DT } from '../src/core/constants.js';
+import { SCREEN as SCREENS } from '../src/ui/menus.js';
+
+const SCREEN_TITLE = SCREENS.TITLE;
 
 // ---------------------------------------------------------------------------
 // Minimal DOM so the renderer and sprite baker can run under node
@@ -42,9 +45,38 @@ function makeCtx() {
   };
 }
 
+/**
+ * A canvas stub that looks like a canvas.
+ *
+ * Wraps the local context stub in the same surface the shared helper provides — listeners, a
+ * dataset, a bounding rect — because the touch layer attaches to the canvas and a stub without
+ * those quietly excluded the whole input path from this test. That is how an undefined canvas
+ * reached production: the integration test constructs a real Game, so it *should* have caught it,
+ * and only failed to because the stub was too thin to notice.
+ */
 function makeCanvas(w = LOGICAL_WIDTH, h = LOGICAL_HEIGHT) {
   const ctx = makeCtx();
-  return { width: w, height: h, style: {}, getContext: () => ctx, _ctx: ctx };
+  const handlers = new Map();
+  return {
+    width: w,
+    height: h,
+    style: {},
+    dataset: {},
+    offsetWidth: w,
+    offsetHeight: h,
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: w, height: h }),
+    addEventListener: (type, fn) => {
+      if (!handlers.has(type)) handlers.set(type, []);
+      handlers.get(type).push(fn);
+    },
+    removeEventListener: () => {},
+    setPointerCapture: () => {},
+    dispatch: (type, event) => {
+      for (const fn of handlers.get(type) || []) fn({ preventDefault() {}, ...event });
+    },
+    getContext: () => ctx,
+    _ctx: ctx,
+  };
 }
 
 function installDom() {
@@ -268,4 +300,71 @@ test('the player can die, and death freezes further mutation', async () => {
   // so continuing to tick must not throw or revive anything.
   assert.doesNotThrow(() => step(game, 1.0, FIRING_EAST));
   assert.equal(player.health.isDead, true);
+});
+
+// ---------------------------------------------------------------------------
+// The phone path, end to end
+// ---------------------------------------------------------------------------
+
+/**
+ * A real Game, driven only by touch, on a simulated phone.
+ *
+ * This is the test that was missing. Three separate defects shipped together and made the game
+ * completely unplayable on a phone — no visible controls, nothing moved — and every one of them
+ * lived in a seam that unit tests do not cover:
+ *
+ *   1. main.js passed `this.canvas`, which was never assigned, so TouchControls.attach received
+ *      undefined and bound no listeners.
+ *   2. The overlay only became visible after a touch it could never receive.
+ *   3. Menus were driven by CONFIRM alone, and touch has no CONFIRM button, so the title screen
+ *      was a dead end.
+ *
+ * Each unit passed its own tests. What nothing checked was whether a finger on the glass could
+ * start a run and move the player, so that is what this checks.
+ */
+test('a phone can start a run and move the player with touch alone', async () => {
+  const previousMatchMedia = globalThis.matchMedia;
+  // Report a coarse pointer, which is what makes the overlay live from the first frame.
+  globalThis.matchMedia = (q) => ({ matches: q.includes('coarse') });
+  try {
+    installDom();
+    const { Game } = await import('../src/main.js');
+    const canvas = makeCanvas();
+    const game = new Game(canvas);
+
+    // Listeners actually bound. This is the assertion the original bug would have failed.
+    assert.equal(game.touch.canvas, canvas, 'touch must be attached to the real canvas');
+    assert.equal(game.touch.active, true, 'the overlay must be live on a touch device');
+
+    // The game opens on the title screen, exactly as a player finds it.
+    game.menus.open(SCREEN_TITLE);
+    game.menus.touchActive = true;
+    game.menus.draw();
+    const rows = game.menus.rowHitboxes;
+    const items = game.menus.items();
+    const newRun = items.findIndex((i) => i.label === 'New run');
+    const box = rows.find((r) => r.index === newRun);
+    assert.ok(box, 'New run must be a drawn, tappable row');
+
+    // Tap it. On a phone this is the only way in.
+    game.menus.touchAt(LOGICAL_WIDTH / 2, (box.top + box.bottom) / 2, 'DOWN');
+    assert.equal(game.menus.blocksGameplay, false, 'tapping New run should leave the menus');
+    assert.ok(game.run?.player, 'a run should be live');
+
+    // Now drive the player with the left thumb stick and nothing else.
+    const player = game.run.player;
+    const startX = player.x;
+    canvas.dispatch('pointerdown', { pointerId: 1, pointerType: 'touch', clientX: 200, clientY: 400 });
+    canvas.dispatch('pointermove', { pointerId: 1, pointerType: 'touch', clientX: 320, clientY: 400 });
+
+    for (let i = 0; i < 40; i += 1) game.update(SIM_DT);
+
+    assert.ok(
+      player.x > startX + 0.2,
+      `the player should have moved right; x went ${startX.toFixed(2)} -> ${player.x.toFixed(2)}`,
+    );
+  } finally {
+    if (previousMatchMedia) globalThis.matchMedia = previousMatchMedia;
+    else delete globalThis.matchMedia;
+  }
 });
