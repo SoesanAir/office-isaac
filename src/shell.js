@@ -9,6 +9,13 @@
  * main.js owns the simulation; this owns the box it is displayed in. Mixing the two is how a
  * fullscreen call ends up buried inside a render loop.
  *
+ * ## Orientation is presentation, not a precondition
+ *
+ * There is no portrait gate. Renderer.resize() turns the canvas a quarter turn when the viewport
+ * is portrait, so the game always presents landscape and a player holding the phone upright sees
+ * it lying on its side — which asks them to turn it more plainly than a notice would, while
+ * costing nothing if they don't.
+ *
  * ## Why a first-tap gate on mobile
  *
  * Two browser policies land on the same gesture: audio cannot start without one, and neither
@@ -52,12 +59,15 @@ async function goFullscreen() {
 
 async function lockLandscape() {
   try {
-    // Only works while fullscreen, and only on Android in practice. iOS Safari has no
-    // Screen Orientation lock at all, which is precisely why the CSS portrait gate exists
-    // rather than relying on this.
+    // Best effort, and genuinely better when it works: if the OS rotates the viewport, the game
+    // is landscape natively and needs no canvas transform at all. Requires fullscreen, and in
+    // practice only Android honours it — iOS Safari has no Screen Orientation lock.
+    //
+    // Nothing depends on it. When the lock is refused the renderer turns the canvas a quarter
+    // turn instead, so a portrait phone is playing either way.
     await globalThis.screen?.orientation?.lock?.('landscape');
   } catch {
-    // Expected on iOS and on any desktop browser. The CSS gate covers it.
+    // Expected on iOS and on desktop. Renderer.resize() covers it.
   }
 }
 

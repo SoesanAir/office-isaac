@@ -227,8 +227,12 @@ export class TouchControls {
    */
   layout() {
     const rect = this.canvas?.getBoundingClientRect?.();
-    const cssHeight = rect?.height || LOGICAL_HEIGHT;
-    const key = `${Math.round(rect?.width || 0)}x${Math.round(cssHeight)}`;
+    // offsetHeight, not rect.height: when the canvas is rotated for a portrait phone the rect is
+    // the rotated bounding box, and using it here would size every button off the wrong axis —
+    // making them too small on exactly the devices the 44pt floor exists to protect.
+    const cssHeight = this.canvas?.offsetHeight || rect?.height || LOGICAL_HEIGHT;
+    const cssWidth = this.canvas?.offsetWidth || rect?.width || LOGICAL_WIDTH;
+    const key = `${Math.round(cssWidth)}x${Math.round(cssHeight)}`;
     if (key === this._rectKey && this.placed.length > 0) return this.placed;
     this._rectKey = key;
 
@@ -268,9 +272,34 @@ export class TouchControls {
   #toLogical(e) {
     const rect = this.canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return { x: 0, y: 0 };
+
+    // The layout box, which CSS transforms do NOT affect — unlike getBoundingClientRect, which
+    // returns the axis-aligned bounds of the *rotated* element. That difference is the whole
+    // reason this needs care: on a portrait phone the rect is taller than wide while the canvas
+    // is still logically 16:9, so scaling by the rect would map every touch to the wrong place.
+    const layoutW = this.canvas.offsetWidth || rect.width;
+    const layoutH = this.canvas.offsetHeight || rect.height;
+
+    if (this.canvas.dataset?.rotated) {
+      // Rotation preserves the centre, so the rect's centre is still the canvas's centre — the
+      // one quantity that survives the transform and can be trusted.
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = e.clientX - cx;
+      const dy = e.clientY - cy;
+      // Inverse of a 90deg clockwise rotation about the centre. Forward, a canvas-local offset
+      // (ox, oy) lands at screen (-oy, ox); solving for the offsets gives these two lines.
+      const localX = layoutW / 2 + dy;
+      const localY = layoutH / 2 - dx;
+      return {
+        x: localX * (LOGICAL_WIDTH / layoutW),
+        y: localY * (LOGICAL_HEIGHT / layoutH),
+      };
+    }
+
     return {
-      x: (e.clientX - rect.left) * (LOGICAL_WIDTH / rect.width),
-      y: (e.clientY - rect.top) * (LOGICAL_HEIGHT / rect.height),
+      x: (e.clientX - rect.left) * (LOGICAL_WIDTH / layoutW),
+      y: (e.clientY - rect.top) * (LOGICAL_HEIGHT / layoutH),
     };
   }
 

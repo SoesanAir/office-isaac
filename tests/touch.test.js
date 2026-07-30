@@ -25,10 +25,27 @@ import { LOGICAL_WIDTH, LOGICAL_HEIGHT } from '../src/core/constants.js';
  * `cssHeight` is what drives the whole layout, since it sets how many points one logical pixel
  * is worth.
  */
-function fakeCanvas(cssWidth, cssHeight) {
+function fakeCanvas(cssWidth, cssHeight, { rotated = false, viewport = null } = {}) {
   const handlers = new Map();
+  // A rotated canvas keeps its layout box (offsetWidth/offsetHeight) but reports the rotated
+  // axis-aligned bounds from getBoundingClientRect, centred on the viewport. Reproducing that
+  // asymmetry is the entire point of this fixture: it is what the real DOM does, and getting it
+  // wrong is what made the first version of the mapping silently incorrect.
+  const vw = viewport?.[0] ?? cssWidth;
+  const vh = viewport?.[1] ?? cssHeight;
   return {
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: cssWidth, height: cssHeight }),
+    dataset: rotated ? { rotated: '1' } : {},
+    offsetWidth: cssWidth,
+    offsetHeight: cssHeight,
+    getBoundingClientRect: () => (rotated
+      ? {
+        // Swapped extents, centred in the viewport.
+        left: vw / 2 - cssHeight / 2,
+        top: vh / 2 - cssWidth / 2,
+        width: cssHeight,
+        height: cssWidth,
+      }
+      : { left: 0, top: 0, width: cssWidth, height: cssHeight }),
     addEventListener: (type, fn) => {
       if (!handlers.has(type)) handlers.set(type, []);
       handlers.get(type).push(fn);
@@ -291,4 +308,79 @@ test('a touch counts as the gesture that unlocks audio', async () => {
   // Browsers gate the audio graph on a user gesture. Without touch counting here, a phone
   // player would reach the first room in silence.
   assert.equal(input.hadAnyInput(), true);
+});
+
+// ---------------------------------------------------------------------------
+// Portrait: the canvas is rotated a quarter turn rather than refused
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a logical point to the viewport coordinate it occupies once the canvas is rotated 90deg
+ * clockwise about its centre, so the tests assert against the geometry rather than against the
+ * implementation's own arithmetic.
+ */
+function logicalToRotatedViewport(lx, ly, layoutW, layoutH, vw, vh) {
+  const ox = lx * (layoutW / LOGICAL_WIDTH) - layoutW / 2;
+  const oy = ly * (layoutH / LOGICAL_HEIGHT) - layoutH / 2;
+  // A 90deg clockwise rotation sends a local offset (ox, oy) to (-oy, ox).
+  return { x: vw / 2 - oy, y: vh / 2 + ox };
+}
+
+test('a rotated canvas maps touches back to the right logical point', () => {
+  // A 390x844 portrait phone. The canvas keeps its landscape layout box and is turned sideways.
+  const layoutW = 844;
+  const layoutH = Math.round(844 * (LOGICAL_HEIGHT / LOGICAL_WIDTH));
+  const canvas = fakeCanvas(layoutW, layoutH, { rotated: true, viewport: [390, 844] });
+  const touch = new TouchControls().attach(canvas);
+
+  for (const [lx, ly] of [[0, 0], [960, 0], [0, 540], [960, 540], [480, 270], [120, 400]]) {
+    const p = logicalToRotatedViewport(lx, ly, layoutW, layoutH, 390, 844);
+    canvas.fire('pointerdown', { id: 1, x: p.x, y: p.y });
+    const stick = [...touch.pointers.values()][0];
+    const got = stick.role === 'BUTTON' ? null : { x: stick.originX, y: stick.originY };
+    if (got) {
+      // Within a logical pixel: the conversion divides by the layout size, so exact equality
+      // would be asserting against floating-point noise.
+      assert.ok(Math.abs(got.x - lx) < 1.5, `x ${got.x.toFixed(2)} should be ${lx}`);
+      assert.ok(Math.abs(got.y - ly) < 1.5, `y ${got.y.toFixed(2)} should be ${ly}`);
+    }
+    canvas.fire('pointerup', { id: 1 });
+  }
+});
+
+test('a rotated canvas still puts the movement stick under the left thumb', () => {
+  const layoutW = 844;
+  const layoutH = Math.round(844 * (LOGICAL_HEIGHT / LOGICAL_WIDTH));
+  const canvas = fakeCanvas(layoutW, layoutH, { rotated: true, viewport: [390, 844] });
+  const touch = new TouchControls().attach(canvas);
+
+  // Logical (200, 400) is in the movement half. Whatever the rotation does to the pixels, the
+  // thumb that lands there must still drive movement and not fire.
+  const start = logicalToRotatedViewport(200, 400, layoutW, layoutH, 390, 844);
+  const end = logicalToRotatedViewport(260, 400, layoutW, layoutH, 390, 844);
+  canvas.fire('pointerdown', { id: 1, x: start.x, y: start.y });
+  canvas.fire('pointermove', { id: 1, x: end.x, y: end.y });
+
+  const s = touch.sample();
+  assert.ok(s.moveX > 0.5, `dragging right should move right, got ${s.moveX}`);
+  assert.equal(s.aimX, 0);
+  assert.equal(s.aimY, 0);
+});
+
+test('a rotated canvas sizes buttons off the layout box, not the rotated bounds', () => {
+  const layoutW = 844;
+  const layoutH = Math.round(844 * (LOGICAL_HEIGHT / LOGICAL_WIDTH));
+  const rotatedCanvas = fakeCanvas(layoutW, layoutH, { rotated: true, viewport: [390, 844] });
+  const flatCanvas = fakeCanvas(layoutW, layoutH);
+
+  const rotatedLayout = new TouchControls().attach(rotatedCanvas).layout();
+  const flatLayout = new TouchControls().attach(flatCanvas).layout();
+
+  // Rotation changes where the pixels land, not how big a fingertip is. Sizing off the rotated
+  // bounding box would have shrunk every target on exactly the devices the 44pt floor protects.
+  assert.equal(rotatedLayout[0].radius, flatLayout[0].radius);
+  for (const b of rotatedLayout) {
+    const diameterPt = b.radius * 2 * (layoutH / LOGICAL_HEIGHT);
+    assert.ok(diameterPt >= TARGET_RADIUS_PT * 2 - 0.5, `${b.label} is ${diameterPt.toFixed(1)}pt`);
+  }
 });

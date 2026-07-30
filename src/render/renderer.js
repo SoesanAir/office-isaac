@@ -78,15 +78,68 @@ export class Renderer {
     this.resize();
   }
 
-  /** Recompute integer scale and backing store size. */
+  /**
+   * Recompute integer scale and backing store size, and present landscape unconditionally.
+   *
+   * A 16:9 playfield has no honest portrait layout — GDD 4.3 makes the room the frame, and
+   * squeezing it into a narrow strip is not a readable game. The earlier answer was to refuse to
+   * draw and ask the player to rotate; this one draws anyway, turned a quarter turn, so a player
+   * holding the phone upright sees the game lying on its side. That communicates "turn me" more
+   * directly than a notice, and costs nothing if they don't, because it is already running.
+   *
+   * Two details make it work. The fit is solved against the SWAPPED viewport extents, because
+   * after rotation it is the viewport's height that constrains the game's width. And the canvas
+   * is centred with `position: fixed` rather than left in flow: its un-rotated layout box is
+   * wider than a portrait viewport, and anchoring the centre explicitly means no overflow or
+   * scroll-position arithmetic can shift it.
+   *
+   * `data-rotated` records the state for the touch layer, which has to unrotate its coordinates.
+   * Reading it from the DOM keeps the two decoupled — the renderer owns the presentation and
+   * nothing has to be threaded through a constructor.
+   */
   resize(windowW = globalThis.innerWidth, windowH = globalThis.innerHeight) {
-    this.scale = integerScaleFor(windowW, windowH);
+    // Only a device that can actually be turned gets rotated. A tall browser window on a desktop
+    // is a window someone resized, not an orientation, and rotating the game inside it would be
+    // baffling rather than helpful.
+    const coarse = globalThis.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches ?? false;
+    const rotated = coarse && windowH > windowW;
+    this.rotated = rotated;
+
+    const fitW = rotated ? windowH : windowW;
+    const fitH = rotated ? windowW : windowH;
+    this.scale = integerScaleFor(fitW, fitH);
+
     this.canvas.width = LOGICAL_WIDTH;
     this.canvas.height = LOGICAL_HEIGHT;
-    // CSS pixels: integer multiple so no fractional smoothing appears.
+    // CSS pixels: an integer multiple wherever the screen allows one, so no fractional
+    // smoothing appears (GDD 18.2).
     this.canvas.style.width = `${LOGICAL_WIDTH * this.scale}px`;
     this.canvas.style.height = `${LOGICAL_HEIGHT * this.scale}px`;
     this.canvas.style.imageRendering = 'pixelated';
+
+    // Guarded because the renderer also runs headless: the test canvas is a minimal stub with a
+    // context and a style bag and no `dataset`, and presentation is not what those tests are
+    // about. `this.rotated` above is the real state; this block only reflects it into the DOM.
+    if (this.canvas.dataset) {
+      if (rotated) this.canvas.dataset.rotated = '1';
+      else delete this.canvas.dataset.rotated;
+    }
+    if (this.canvas.style) {
+      if (rotated) {
+        this.canvas.style.position = 'fixed';
+        this.canvas.style.left = '50%';
+        this.canvas.style.top = '50%';
+        // translate before rotate: the translate centres the un-rotated box on the viewport
+        // centre, and rotating about that centre then keeps it there.
+        this.canvas.style.transform = 'translate(-50%, -50%) rotate(90deg)';
+      } else {
+        this.canvas.style.position = '';
+        this.canvas.style.left = '';
+        this.canvas.style.top = '';
+        this.canvas.style.transform = '';
+      }
+    }
+
     this.ctx.imageSmoothingEnabled = false;
   }
 

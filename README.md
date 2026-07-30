@@ -28,9 +28,10 @@ Node 20 or newer is needed for the tests and tools, which run the same modules t
 
 ## On a phone
 
-Open the same URL on a phone and turn it sideways. It plays in landscape, fullscreen, with
-on-screen controls; one tap on "Tap to play" turns on sound and goes fullscreen at the same time,
-because browsers require a gesture for each.
+Open the same URL on a phone. The game always runs in landscape — if you are holding the phone
+upright it will be lying on its side, which is your cue to turn it. There is no "please rotate"
+screen: it is already playing. One tap on "Tap to play" turns on sound and goes fullscreen at the
+same time, because browsers require a gesture for each.
 
 | | |
 |---|---|

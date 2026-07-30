@@ -128,3 +128,89 @@ test('R-ART-001: the player reads at roughly one world unit tall', async () => {
     `player sprite is ${baked.height}px tall, which overwhelms a ${TILE}px grid`,
   );
 });
+
+// ---------------------------------------------------------------------------
+// Landscape is unconditional: a portrait phone gets a rotated canvas
+// ---------------------------------------------------------------------------
+
+/** Run a body with matchMedia reporting a chosen pointer type. */
+function withPointer(coarse, body) {
+  const previous = globalThis.matchMedia;
+  globalThis.matchMedia = (query) => ({ matches: coarse && query.includes('coarse') });
+  try {
+    return body();
+  } finally {
+    if (previous) globalThis.matchMedia = previous;
+    else delete globalThis.matchMedia;
+  }
+}
+
+test('a portrait phone rotates the canvas and fits against the swapped extents', async () => {
+  installDomShim();
+  const { Renderer } = await import('../src/render/renderer.js');
+  const canvas = makeCanvas();
+  canvas.dataset = {};
+  const renderer = new Renderer(canvas, { camera: new Camera() });
+
+  withPointer(true, () => renderer.resize(390, 844));
+
+  // The whole point of the change: portrait does not mean "refuse to draw", it means "turn the
+  // canvas". A player holding the phone upright sees the game on its side and turns the phone.
+  assert.equal(renderer.rotated, true);
+  assert.equal(canvas.dataset.rotated, '1');
+  assert.match(canvas.style.transform, /rotate\(90deg\)/);
+
+  // Fitted against the swapped extents: after rotation it is the viewport's HEIGHT that limits
+  // the game's width, so a scale computed from 390x844 unswapped would be far too small.
+  const swapped = Math.min(844 / LOGICAL_WIDTH, 390 / LOGICAL_HEIGHT);
+  assert.ok(Math.abs(renderer.scale - swapped) < 1e-9, `scale ${renderer.scale} vs ${swapped}`);
+});
+
+test('a landscape phone is not rotated', async () => {
+  installDomShim();
+  const { Renderer } = await import('../src/render/renderer.js');
+  const canvas = makeCanvas();
+  canvas.dataset = {};
+  const renderer = new Renderer(canvas, { camera: new Camera() });
+
+  withPointer(true, () => renderer.resize(844, 390));
+
+  assert.equal(renderer.rotated, false);
+  assert.equal(canvas.dataset.rotated, undefined);
+  assert.equal(canvas.style.transform, '');
+});
+
+test('a tall desktop window is never rotated', async () => {
+  installDomShim();
+  const { Renderer } = await import('../src/render/renderer.js');
+  const canvas = makeCanvas();
+  canvas.dataset = {};
+  const renderer = new Renderer(canvas, { camera: new Camera() });
+
+  // A narrow browser window is a window someone resized, not an orientation. Rotating the game
+  // inside it would be baffling, so rotation is gated on a coarse pointer.
+  withPointer(false, () => renderer.resize(1000, 1400));
+
+  assert.equal(renderer.rotated, false);
+  assert.equal(canvas.style.transform, '');
+  // Still an integer scale, because both extents exceed the logical frame — GDD 18.2's
+  // pixel-perfect path is unaffected by any of the mobile handling.
+  assert.equal(renderer.scale, 1);
+});
+
+test('a viewport smaller than the logical frame scales fractionally rather than overflowing', async () => {
+  installDomShim();
+  const { Renderer } = await import('../src/render/renderer.js');
+  const canvas = makeCanvas();
+  canvas.dataset = {};
+  const renderer = new Renderer(canvas, { camera: new Camera() });
+
+  // 700 CSS px is narrower than the 960-px logical frame. Flooring to an integer would give 0,
+  // and the old `Math.max(1, ...)` gave 1 — which laid the canvas out wider than the window and
+  // pushed the play area off the screen. Fractional is the only correct answer here.
+  withPointer(false, () => renderer.resize(700, 1200));
+
+  const expected = Math.min(700 / LOGICAL_WIDTH, 1200 / LOGICAL_HEIGHT);
+  assert.ok(expected < 1);
+  assert.ok(Math.abs(renderer.scale - expected) < 1e-9, `scale ${renderer.scale}`);
+});

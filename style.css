@@ -115,49 +115,20 @@ html, body {
 }
 
 /*
- * Portrait gate.
+ * Portrait is not refused, it is rotated.
  *
- * A 16:9 playfield in portrait would be a letterboxed strip a few hundred pixels wide, and
- * GDD 4.3 makes the room the frame — shrinking it to fit is not a readable game. So portrait
- * is refused outright rather than rendered badly.
+ * There used to be a "rotate your device" gate here. It was correct that a 16:9 playfield has no
+ * honest portrait layout — GDD 4.3 makes the room the frame, and letterboxing it into a narrow
+ * strip is not a readable game — but refusing to draw was the wrong conclusion. The game now
+ * presents landscape unconditionally and turns the canvas a quarter turn when the viewport is
+ * portrait, so a player who picks up the phone the "wrong" way is playing rather than reading a
+ * notice.
  *
- * Driven purely by the media query: correct before the first frame, and impossible to leave
- * stale the way a JS orientation listener can if it misses an event.
+ * The geometry lives in Renderer.resize() rather than here, because the fitted size has to be
+ * computed against the swapped viewport extents and CSS cannot do that arithmetic. The renderer
+ * sets the transform inline and records the state on `data-rotated`, which the touch layer reads
+ * to unrotate its coordinates.
  */
-#rotate { display: none; }
-
-@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
-  #rotate {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    display: grid;
-    place-items: center;
-    background: var(--void);
-    color: var(--ink);
-    text-align: center;
-    padding: calc(env(safe-area-inset-top) + 1.5rem) 1.5rem
-             calc(env(safe-area-inset-bottom) + 1.5rem);
-  }
-  /* Hidden rather than merely covered, so a stray touch cannot reach a stick behind the gate
-     and leave the player walking into a wall the moment they rotate. */
-  #stage, #enter { visibility: hidden; }
-}
-
-.rotate-inner { display: grid; justify-items: center; gap: 0.75rem; }
-.rotate-title { margin: 0; font-size: 16px; letter-spacing: 0.04em; }
-.rotate-note { margin: 0; font-size: 12px; color: var(--dim); }
-
-@media (prefers-reduced-motion: no-preference) {
-  /* The only animation on the page, and it is instructional rather than decorative: it shows
-     the rotation being asked for (ui-ux: motion must convey meaning). */
-  .rotate-inner svg { animation: rotate-hint 2.4s ease-in-out infinite; }
-}
-
-@keyframes rotate-hint {
-  0%, 45% { transform: rotate(0deg); }
-  70%, 100% { transform: rotate(-90deg); }
-}
 
 /*
  * First-tap gate.

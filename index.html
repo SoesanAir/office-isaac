@@ -35,25 +35,16 @@
   </main>
 
   <!--
-    Portrait gate. The playfield is 16:9 and GDD 4.3 makes the room the frame, so there is no
-    honest portrait layout — letterboxing to a 390px-wide strip would leave the room unreadable.
-    Rather than render something unplayable, the game asks for the rotation it needs.
+    There is deliberately no "rotate your device" gate.
 
-    Shown by CSS media query alone, so it is correct before the first frame and cannot be left
-    stale by a JS orientation listener that missed an event.
+    The game presents landscape unconditionally: in a portrait viewport the canvas is turned a
+    quarter turn so it still fills the screen. A player holding the phone upright sees the game
+    lying on its side, which tells them to turn it far more directly than a notice would — and
+    costs them nothing if they choose not to, because it is already running.
+
+    The geometry is in Renderer.resize(); the touch layer unrotates its coordinates from the
+    `data-rotated` flag the renderer sets.
   -->
-  <div id="rotate" role="alertdialog" aria-live="polite" aria-label="Rotate your device">
-    <div class="rotate-inner">
-      <svg viewBox="0 0 64 64" width="72" height="72" aria-hidden="true" focusable="false">
-        <rect x="20" y="6" width="24" height="44" rx="3" fill="none" stroke="currentColor" stroke-width="3"/>
-        <path d="M14 54a24 24 0 0 0 36 0" fill="none" stroke="currentColor" stroke-width="3"
-              stroke-linecap="round" stroke-dasharray="4 4"/>
-        <path d="M48 48l6 6-8 2z" fill="currentColor"/>
-      </svg>
-      <p class="rotate-title">Rotate to landscape</p>
-      <p class="rotate-note">Office Isaac is played sideways.</p>
-    </div>
-  </div>
 
   <!--
     First-tap gate on mobile only.
