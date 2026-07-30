@@ -1,7 +1,9 @@
 /**
  * Progression tests: unlocks, save domains, and challenges.
  *
- * GDD refs: 16.1-16.8 (progression, unlock families, employee profiles, endings,
+ * GDD refs: R-QA-004 (save integrity: atomic write, backup recovery,
+ *           migration and continue), R-QA-003 (readability under accessibility presets),
+ *           16.1-16.8 (progression, unlock families, employee profiles, endings,
  *           challenges), 21.1 (save domains), 21.2 (autosave policy), 21.3 (seed modes and
  *           what each may unlock), R-PRG-001 (an unlock is granted exactly once and is
  *           idempotent across save and reload), R-PRG-002 (an unlock never alters an

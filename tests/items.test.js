@@ -1,7 +1,10 @@
 /**
  * Item catalogue tests: the six collectible classes as shipped content.
  *
- * GDD refs: 8.3 (quality bands), 8.4 (the loot algorithm; quality 4 is gated before
+ * GDD refs: R-AI-003 (generated code carries tests for deterministic and
+ *           data-driven behaviour: the item catalogue is data, and these roll it under a fixed
+ *           seed rather than asserting hand-written outcomes),
+ *           8.3 (quality bands), 8.4 (the loot algorithm; quality 4 is gated before
  *           floor 3), 8.5 (synergy layers), 8.6 / R-ITM-007 (a liability must be
  *           declinable and can never make a run unwinnable), 8.7 (catalogue
  *           categories), 9.4-9.8 (active, pocket, and charm slots), 9.6 (CARD-015

@@ -247,6 +247,9 @@ class Game {
     this.events.on(EVENTS.RUN_ENDED, (e) => {
       this.statistics.runs += 1;
       if (e?.reason === 'DEATH') this.statistics.deaths += 1;
+      // R-LOOP-006: a failed run updates discovery and unlock progress BEFORE returning to the
+      // menu. The ordering is the requirement, not an implementation detail — persist() first,
+      // clearRun() second. Reversed, a death would discard everything the run discovered.
       persist();
       // GDD 21.2: a finished run is not resumable, and leaving it on disk would offer the
       // player a continue that drops them into a dead run.

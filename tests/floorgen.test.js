@@ -1,7 +1,9 @@
 /**
  * Floor generation tests.
  *
- * GDD refs: 23.1 (Property and Seed fixture test layers), 23.2 (procedural test
+ * GDD refs: R-QA-002 (determinism: an identical seed, content version and mode
+ *           reproduces the required streams),
+ *           23.1 (Property and Seed fixture test layers), 23.2 (procedural test
  *           suite), R-FLR-001..010, R-TEC-002 (determinism), R-QA-001 (no soft
  *           locks), R-QA-002 (identical seed reproduces required streams).
  *

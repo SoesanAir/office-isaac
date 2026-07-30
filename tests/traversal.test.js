@@ -1,7 +1,9 @@
 /**
  * Door traversal and player-agency tests.
  *
- * GDD refs: 11.2 (a door edge is a property of the graph), 12.3 (door classes, sealing,
+ * GDD refs: R-QA-001 (no soft locks: the automated floor suite finds no
+ *           unrecoverable normal progression state),
+ *           11.2 (a door edge is a property of the graph), 12.3 (door classes, sealing,
  *           and openings), R-FLR-004 (every non-secret room is reachable), R-ROM-006 (a
  *           template's geometry must admit its own door sockets), R-CMB-006 (no
  *           impossible state), R-PLY-001 (the player is always in control of movement

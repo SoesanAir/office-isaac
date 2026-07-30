@@ -430,7 +430,10 @@ export class BossRuntime {
     const boss = this.boss;
     if (!def || boss.rewardResolved) return;
 
-    // R-BSS-002: exactly one Manager Reward, idempotent across save and continue. The
+    // R-BSS-002 / R-LOOP-002: exactly one Manager Reward per defeated floor boss, idempotent
+    // across save and continue. Both ids name the same guarantee from opposite ends — the boss
+    // contract and the run loop — so both are stated here rather than leaving R-LOOP-002 looking
+    // unimplemented. The
     // latch lives on the ROOM because a boss entity does not survive a reload and
     // `room.state` does — putting it on the boss is how you get a duplicated reward,
     // which Appendix E lists as a failure condition.

@@ -39,7 +39,22 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const GDD = join(ROOT, 'docs', 'GDD.md');
 const OUT = join(ROOT, 'docs', 'REQUIREMENT_TRACEABILITY.md');
 const SCAN_DIRS = ['src', 'tests', 'content', 'tools'];
-const ID_PATTERN = /R-[A-Z]{3}-\d{3}/g;
+/**
+ * Requirement ids as the GDD actually writes them.
+ *
+ * `{2,4}`, not `{3}`. The original pattern assumed every category was three letters, which
+ * silently excluded three whole families from every report this tool has ever produced:
+ * R-QA (2 letters, and the seven release gates of GDD 23.5 — the most consequential
+ * requirements in the document), R-AI (2), and R-LOOP (4). Eighteen requirements in total were
+ * invisible, and the tool cheerfully reported "0 unreferenced and unwaived" without ever having
+ * looked at them.
+ *
+ * That is the specific way a coverage tool is worse than no tool: it converts an unknown into a
+ * confident wrong answer. The bound is 2..4 because those are the shortest and longest
+ * categories the GDD uses; a new category outside that range would be missed the same way, so
+ * the census below prints the category list for exactly that reason.
+ */
+const ID_PATTERN = /R-[A-Z]{2,4}-\d{3}/g;
 
 /**
  * Requirements that are deliberately not traceable to code, each with why.
@@ -48,6 +63,16 @@ const ID_PATTERN = /R-[A-Z]{3}-\d{3}/g;
  * satisfied by an artefact in this repository — not that it is inconvenient to trace.
  */
 const WAIVERS = Object.freeze({
+  // Process requirements about how the work is carried out, not behaviour the program can
+  // exhibit. There is no line of code that can demonstrate either, and a test asserting "the
+  // agent read the file first" would be theatre. They are governed by review of the change
+  // history, which is where the evidence actually lives.
+  'R-AI-002': 'Process requirement: no silent design rewrites. Evidenced by commit messages and '
+    + 'the deviation log, which state every departure from the GDD and its reason. Not '
+    + 'expressible as a runtime assertion.',
+  'R-AI-005': 'Process requirement: verify existing code before editing. Evidenced by review of '
+    + 'the change history rather than by a test; nothing the program does can attest to it.',
+
   'R-GOV-001': 'Process rule: the GDD outranks code comments and plans. Enforced by review, not by an artefact.',
   'R-GOV-002': 'Process rule about change control. No runtime or content artefact can assert it.',
   'R-GOV-004': 'Process rule about design review cadence.',

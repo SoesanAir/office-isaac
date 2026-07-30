@@ -3,11 +3,23 @@
  * Shipping gate: everything that must be true before a build goes out.
  *
  * GDD refs: 22.6 (a feature is not done without a playable smoke test), 23.1 (the test
- *           layers), 24 (shipping gates and the seed content census), R-QA-001 (the content
- *           validator passes), R-QA-002 (the automated suite passes), R-QA-003 (floor
- *           generation is stress-tested), R-QA-004 (requirement traceability is current),
- *           R-QA-005 (no missing assets, invalid references, duplicate ids, or zero-weight
- *           required pools).
+ *           layers), 23.5 (the release gates, quoted below), 24 (the release content baseline).
+ *
+ * ## The release gate ids, corrected
+ *
+ * An earlier version of this file invented its own meanings for R-QA-001 to R-QA-004 —
+ * "the content validator passes", "the automated suite passes", and so on. GDD 23.5 already
+ * assigns those ids, and it assigns them to different things:
+ *
+ *   R-QA-001  No soft locks                  R-QA-005  Content validity
+ *   R-QA-002  Determinism                    R-QA-006  Performance
+ *   R-QA-003  Readability                    R-QA-007  Hidden content protection
+ *   R-QA-004  Save integrity
+ *
+ * Only R-QA-005 happened to line up. The rest pointed the traceability report at the wrong
+ * behaviour, which is worse than leaving them unlabelled: the report claimed coverage of
+ * determinism and save integrity from a script that checks neither. The ids below are the
+ * GDD's, and each gate now names the requirement it actually enforces.
  *
  * ## Why a single script
  *
@@ -63,10 +75,12 @@ function run(args, { quiet = false } = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// R-QA-002: the automated suite
+// The automated suite, which is where R-QA-001 (no soft locks), R-QA-002 (determinism),
+// R-QA-003 (readability), R-QA-004 (save integrity) and R-QA-007 (hidden content protection)
+// are actually enforced — each by its own tests, named at those tests.
 // ---------------------------------------------------------------------------
 
-gate('Automated tests (R-QA-002)', {}, () => {
+gate('Automated tests', {}, () => {
   // Through the same runner `npm test` uses. Passing a glob directly here worked on the
   // development machine's Node 24 and silently matched nothing on CI's Node 20, which showed
   // up as "? passing, ? failing" on a suite that was entirely green.
@@ -79,17 +93,20 @@ gate('Automated tests (R-QA-002)', {}, () => {
 });
 
 // ---------------------------------------------------------------------------
-// R-QA-001 / R-QA-005: content validation
+// R-QA-005: content validity — no missing assets, invalid references, duplicate ids, or
+// zero-weight required pools.
 // ---------------------------------------------------------------------------
 
-gate('Content validation (R-QA-001, R-QA-005)', {}, () => {
+gate('Content validity (R-QA-005)', {}, () => {
   const { ok, output } = run([join('tools', 'validate-content.js')], { quiet: true });
   const errors = Number(/^Errors \((\d+)\)/m.exec(output)?.[1] ?? 0);
   const warnings = Number(/^Warnings \((\d+)\)/m.exec(output)?.[1] ?? 0);
 
-  // Unauthored sprites are the one error class treated as a warning. They are a visible,
-  // obviously-unfinished state rather than a correctness defect, and letting them block the
-  // gate would mean the gate is always red and therefore ignored.
+  // R-AI-004: a placeholder must be clearly labelled and must not masquerade as a completed
+  // mechanic. Unauthored sprites are the one error class treated as a warning — they are a
+  // visible, obviously-unfinished state rather than a correctness defect, and blocking the gate
+  // on them would make it permanently red and therefore ignored. But they are COUNTED and
+  // printed on every run, which is the "clearly labelled" half of the requirement.
   const spriteErrors = (output.match(/unknown sprite/g) ?? []).length;
   const realErrors = errors - spriteErrors;
 
@@ -106,10 +123,16 @@ gate('Content validation (R-QA-001, R-QA-005)', {}, () => {
 });
 
 // ---------------------------------------------------------------------------
-// R-QA-003: generation stress
+// R-QA-006: performance.
+//
+// Partial, and worth being precise about which part. This enforces the generation budget —
+// GDD 20.7's p99 — over thousands of floors, which is the half of R-QA-006 that can be
+// measured in CI on hardware nobody chose. Sustained frame rate on target hardware in
+// "representative worst cases" is the other half, and it is NOT verified here; that needs a
+// device and a human. Recorded in the README's known gaps rather than implied to be covered.
 // ---------------------------------------------------------------------------
 
-gate('Floor generation stress (R-QA-003)', {}, () => {
+gate('Generation performance (R-QA-006, partial)', {}, () => {
   // A smaller sample than `npm run stress:floors`, deliberately. The full sweep is 10,000
   // floors per definition across 21 definitions — minutes of wall clock, which is long enough
   // that the gate stops being run at all. 400 per definition is 8,400 floors in about 45
@@ -122,13 +145,43 @@ gate('Floor generation stress (R-QA-003)', {}, () => {
 });
 
 // ---------------------------------------------------------------------------
-// R-QA-004: traceability is current
+// R-AI-001: every implementation plan maps work to GDD requirement ids. This gate is what makes
+// that checkable rather than aspirational, so the id lives here.
+//
+// Deliberately NOT R-QA-004 (that is Save integrity in GDD 23.5) and not R-GOV-003 (that is
+// "content must be data-driven"). Both were considered and both are about something else; a
+// convenient-looking id is exactly how a traceability report starts lying.
 // ---------------------------------------------------------------------------
 
-gate('Requirement traceability (R-QA-004)', {}, () => {
+gate('Requirement traceability (R-AI-001)', {}, () => {
   const { ok, output } = run([join('tools', 'traceability.js'), '--check'], { quiet: true });
   for (const line of output.split('\n').filter((l) => l.trim())) process.stdout.write(`  ${line.trim()}\n`);
   return { ok, note: 'no unwaived requirement gaps' };
+});
+
+// ---------------------------------------------------------------------------
+// GDD 24: the release content baseline.
+//
+// Keys on the seed catalogue — the content the GDD itself defines — and not on the north-star
+// 1.0 targets, which GDD 24 explicitly permits a roadmap to phase. A gate that failed on the
+// north star would be red from the first day of production to the last, and therefore ignored.
+// ---------------------------------------------------------------------------
+
+gate('Content baseline (GDD 24)', {}, () => {
+  const { ok, output } = run([join('tools', 'content-baseline.js')], { quiet: true });
+  const shortfall = output.includes('SEED CATALOGUE SHORTFALL');
+  const lines = output.split('\n');
+  const summary = lines.find((l) => l.includes('Seed catalogue:'))
+    ?? lines.find((l) => l.includes('SHORTFALL'));
+  process.stdout.write(`  ${(summary ?? '').trim()}\n`);
+  // The distance still to travel, printed even when the gate passes: it is the honest measure of
+  // how much content a 1.0 still wants, and hiding it behind a green tick would be the kind of
+  // reassuring silence this whole script exists to avoid.
+  const at = lines.findIndex((l) => l.includes('Remaining to the 1.0 north star'));
+  if (at >= 0) {
+    for (const line of lines.slice(at, at + 6)) process.stdout.write(`  ${line.trim()}\n`);
+  }
+  return { ok: ok && !shortfall, note: shortfall ? 'seed catalogue incomplete' : 'seed catalogue complete' };
 });
 
 // ---------------------------------------------------------------------------

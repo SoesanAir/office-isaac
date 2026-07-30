@@ -1,7 +1,9 @@
 /**
  * Menu tests.
  *
- * GDD refs: 17.1 (the UI law), 17.5 (the required menus and their functions), 17.6
+ * GDD refs: R-QA-007 (hidden content protection: fresh-save UI reveals no
+ *           undiscovered routes or totals),
+ *           17.1 (the UI law), 17.5 (the required menus and their functions), 17.6
  *           (accessibility: hold/toggle alternatives, scalable text, colour-vision presets,
  *           reduced motion), 21.1 (settings and profile are save domains), 21.2 (restart
  *           uses hold confirmation and deliberately discards the run), R-PRG-004 / D-016

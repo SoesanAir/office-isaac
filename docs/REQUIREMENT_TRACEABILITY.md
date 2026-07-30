@@ -9,10 +9,10 @@ convention of naming requirement ids in comments is the trace link itself.
 
 | Metric | Count |
 | --- | --- |
-| Requirements in the GDD | 125 |
-| Referenced by a test | 60 |
-| Referenced only by implementation | 57 |
-| Waived, with a stated reason | 8 |
+| Requirements in the GDD | 143 |
+| Referenced by a test | 68 |
+| Referenced only by implementation | 65 |
+| Waived, with a stated reason | 10 |
 | Unreferenced and unwaived | 0 |
 
 `Referenced only by implementation` is not a failure — a good deal of the GDD is
@@ -23,6 +23,11 @@ listed separately so the difference stays visible.
 
 | ID | Rule | Implementation | Tests |
 | --- | --- | --- | --- |
+| R-AI-001 | Every implementation plan maps work to GDD requirement IDs. | tools/qa-gate.js | — |
+| R-AI-002 | AI agents may decompose scope but may not silently rewrite design. | _waived: Process requirement: no silent design rewrites. Evidenced by commit messages and the deviation log, which state every departure from the GDD and its reason. Not expressible as a runtime assertion._ | — |
+| R-AI-003 | Generated code includes tests for deterministic and data-driven behavior. | — | tests/items.test.js |
+| R-AI-004 | Placeholder implementations are clearly labeled and cannot masquerade as completed mechanics. | tools/qa-gate.js | — |
+| R-AI-005 | The agent verifies existing code before editing. | _waived: Process requirement: verify existing code before editing. Evidenced by review of the change history rather than by a test; nothing the program does can attest to it._ | — |
 | R-ART-001 | Sprites are readable at native gameplay scale. | src/render/renderer.js<br>src/render/sprites.js<br>content/sprites/collectibles-charms.js<br>content/sprites/collectibles.js<br>content/sprites/enemies-open-office.js<br>content/sprites/hazards.js<br>content/sprites/index.js<br>content/sprites/items.js<br>content/sprites/objects.js<br>content/sprites/pickups.js<br>content/sprites/player.js<br>content/sprites/weapons.js | tests/render-smoke.test.js<br>tests/sprites.test.js |
 | R-ART-002 | Every collectible has a unique inventory sprite. | src/core/registry.js<br>src/render/sprites.js<br>content/sprites/collectibles-charms.js<br>content/sprites/collectibles.js<br>content/sprites/items.js<br>content/sprites/weapons.js | tests/sprites.test.js |
 | R-ART-003 | Visual effect degradation preserves hostile readability and mechanical output. | src/core/constants.js<br>src/main.js<br>src/render/renderer.js<br>content/sprites/weapons.js<br>content/world/hazards.js | — |
@@ -90,7 +95,7 @@ listed separately so the difference stays visible.
 | R-FLR-010 | Hidden rooms are omitted from the map until discovered by an effect or entered. | src/systems/floor-validate.js<br>src/systems/hooks/active-hooks.js<br>src/systems/hooks/card-hooks.js<br>src/systems/hooks/charm-hooks.js<br>src/systems/hooks/economy-hooks.js<br>src/ui/hud.js | tests/floorgen.test.js |
 | R-GOV-001 | The GDD is the design authority. Code comments, task tickets, and generated plans are subordinate. | _waived: Process rule: the GDD outranks code comments and plans. Enforced by review, not by an artefact._ | — |
 | R-GOV-002 | All permanent design changes require a revision note with affected requirement IDs. | _waived: Process rule about change control. No runtime or content artefact can assert it._ | — |
-| R-GOV-003 | Content must be data-driven unless a mechanic genuinely requires code. | src/core/registry.js<br>src/core/schema.js<br>src/main.js<br>src/systems/effects.js<br>src/systems/hooks/stat-hooks.js<br>src/systems/hooks/world-hooks.js<br>src/systems/unlocks.js<br>content/index.js<br>tools/traceability.js | — |
+| R-GOV-003 | Content must be data-driven unless a mechanic genuinely requires code. | src/core/registry.js<br>src/core/schema.js<br>src/main.js<br>src/systems/effects.js<br>src/systems/hooks/stat-hooks.js<br>src/systems/hooks/world-hooks.js<br>src/systems/unlocks.js<br>content/index.js<br>tools/qa-gate.js<br>tools/traceability.js | — |
 | R-GOV-004 | The shipping title, engine, and final art production pipeline are separate production decisions. | _waived: Process rule about design review cadence._ | — |
 | R-ITM-001 | Passive items stack without a normal inventory cap. | src/entities/player.js<br>src/systems/attack-graph.js<br>src/systems/hooks/stat-hooks.js<br>content/items/passives.js<br>content/items/transformations.js | tests/items.test.js |
 | R-ITM-002 | Every collectible has a unique sprite and fixed class. | src/core/registry.js<br>src/core/schema.js<br>content/items/passives.js<br>content/sprites/collectibles-charms.js<br>content/sprites/collectibles.js<br>content/sprites/index.js<br>content/sprites/items.js<br>content/sprites/weapons.js | tests/items.test.js<br>tests/sprites.test.js |
@@ -100,6 +105,12 @@ listed separately so the difference stays visible.
 | R-ITM-006 | Unsupported weapon interactions are allowed and deterministic. | src/systems/adapters.js<br>src/systems/adapters/melee-adapters.js<br>src/systems/adapters/projectile-adapters.js<br>src/systems/attack-graph.js | tests/attack-graph.test.js<br>tests/items.test.js |
 | R-ITM-007 | Liability items can be declined and cannot create an unwinnable normal run by themselves. | src/schemas.js<br>src/systems/hooks/combat-hooks.js<br>src/systems/hooks/stat-hooks.js<br>content/items/passives.js<br>content/meta/challenges.js | tests/items.test.js |
 | R-ITM-008 | Strong builds are not secretly balanced downward by item selection. | src/systems/combat.js<br>src/systems/hooks/charm-hooks.js<br>src/systems/hooks/economy-hooks.js<br>src/systems/loot.js<br>src/systems/shop.js | tests/attack-graph.test.js<br>tests/items.test.js |
+| R-LOOP-001 | Every normal floor contains exactly one start room, one supply closet, one shop, and one boss room unless an explicit floor modifier overrides the rule. | src/schemas.js<br>src/systems/floor-validate.js<br>content/departments/floors.js | — |
+| R-LOOP-002 | Every defeated floor boss produces one manager reward pedestal. | src/systems/boss-runtime.js | — |
+| R-LOOP-003 | A player may leave an undesirable pedestal item uncollected. | src/main.js | — |
+| R-LOOP-004 | Normal room clears may produce a pickup reward from a weighted clear pool. | src/systems/loot.js<br>src/systems/room-state.js | — |
+| R-LOOP-005 | The player can continue exploring a cleared floor before entering the elevator. | src/systems/room-state.js<br>src/systems/run.js | tests/integration.test.js |
+| R-LOOP-006 | A failed run updates discovery and unlock progress before returning to the menu. | src/main.js | — |
 | R-PLY-001 | Internal stats use numeric values; normal UI uses qualitative language. | src/entities/health.js | tests/traversal.test.js |
 | R-PLY-002 | Movement remains responsive while firing. | src/entities/player.js<br>src/systems/input.js<br>src/systems/physics.js<br>src/systems/player-attack.js<br>src/systems/touch.js | tests/touch.test.js |
 | R-PLY-003 | Stat changes clamp to safe data-defined limits. | src/core/constants.js<br>src/core/math.js<br>src/entities/player.js<br>src/entities/status.js<br>src/main.js<br>src/systems/adapters/pattern-adapters.js<br>src/systems/attack-graph.js<br>src/systems/hooks/stat-hooks.js<br>content/enemies/alternate.js | tests/attack-graph.test.js<br>tests/items.test.js |
@@ -112,6 +123,13 @@ listed separately so the difference stays visible.
 | R-PRG-004 | The game does not show a denominator for total items, endings, bosses, or secrets. | src/systems/unlocks.js<br>src/ui/menus.js<br>content/loc/en.js<br>content/meta/endings.js<br>content/meta/unlocks.js | tests/menus.test.js<br>tests/progression.test.js |
 | R-PRG-005 | Unlock evaluation occurs on relevant events and at run end, and is idempotent. | src/schemas.js<br>content/meta/unlocks.js | — |
 | R-PRG-006 | Seeded challenge and daily modes declare whether unlocks are enabled. | _waived: Long-horizon progression pacing, judged across many playtest runs rather than asserted._ | — |
+| R-QA-001 | No soft locks | src/systems/floor-validate.js<br>tools/qa-gate.js<br>tools/stress-floors.js<br>tools/traceability.js | tests/floorgen.test.js<br>tests/traversal.test.js |
+| R-QA-002 | Determinism | tools/qa-gate.js<br>tools/run-tests.js | tests/floorgen.test.js |
+| R-QA-003 | Readability | tools/qa-gate.js | tests/progression.test.js<br>tests/templates.test.js |
+| R-QA-004 | Save integrity | tools/qa-gate.js | tests/progression.test.js |
+| R-QA-005 | Content validity | src/schemas.js<br>content/pools/index.js<br>content/world/object-loot.js<br>tools/qa-gate.js<br>tools/validate-content.js | tests/items.test.js<br>tests/sprites.test.js<br>tests/templates.test.js |
+| R-QA-006 | Performance | tools/qa-gate.js | — |
+| R-QA-007 | Hidden content protection | content/meta/endings.js<br>content/meta/unlocks.js<br>tools/qa-gate.js | tests/menus.test.js |
 | R-ROM-001 | Room templates and encounters are separate data assets. | src/schemas.js<br>src/systems/encounter-select.js<br>src/systems/template-index.js<br>content/encounters/departments.js<br>content/encounters/open-office-it.js<br>content/rooms/_department-core.js<br>content/rooms/departments.js<br>content/rooms/open-office.js | tests/encounters.test.js |
 | R-ROM-002 | A room may contain zero enemies, one encounter, or a defined wave sequence. | src/systems/encounter-select.js<br>src/systems/room-state.js<br>content/rooms/_department-core.js | tests/encounters.test.js |
 | R-ROM-003 | A large room remains one room for clear state, map display, and active charge. | src/systems/room-state.js | — |

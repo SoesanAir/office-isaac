@@ -126,6 +126,7 @@ npm test              # the test suite
 npm run validate      # content census and validation
 npm run check         # validate + test
 npm run stress:floors # generate 10,000 floors per definition and check the thresholds
+npm run baseline      # measure the content against GDD 24's release baseline
 npm run traceability  # regenerate docs/REQUIREMENT_TRACEABILITY.md
 npm run qa            # the full shipping gate — run this before pushing
 ```
@@ -147,8 +148,17 @@ waived, but not silently.
 
 Recorded here rather than left for a player to find:
 
+- **Content is at the GDD's seed catalogue, not its 1.0 north star.** GDD 24 defines both, and
+  says a roadmap may phase the latter. Every family the document defines is fully implemented;
+  the 1.0 targets are higher in most of them — 220 passive items against 60, 450 encounters
+  against 100. Run `npm run baseline` for the current distance in every family.
+- **Sustained frame rate on target hardware is unverified** (R-QA-006, half of it). The
+  generation budget is enforced over thousands of floors in CI; frame pacing in a heavy fight on
+  a real device needs a device and a human, and has not been measured.
 - Balance beyond the automated thresholds has not had a human pass. Generation, population and
   soft-lock guarantees are enforced by tests; whether floor 9 *feels* right is not.
+- The touch controls have never been under a real thumb. They are covered by 17 tests, which is
+  not the same thing.
 
 ## Licence
 

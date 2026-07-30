@@ -15,7 +15,8 @@
     "stress:floors": "node tools/stress-floors.js",
     "check": "npm run validate && npm test",
     "traceability": "node tools/traceability.js",
-    "qa": "node tools/qa-gate.js"
+    "qa": "node tools/qa-gate.js",
+    "baseline": "node tools/content-baseline.js"
   },
   "keywords": [],
   "license": "UNLICENSED"
